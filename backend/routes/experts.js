@@ -1,0 +1,129 @@
+const express = require('express');
+const router = express.Router();
+const { query } = require('../config/db');
+const { authenticate, authorize } = require('../middleware/auth');
+
+// Get personalized health experts for patient
+router.get('/personalized', authenticate, authorize('patient'), async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Get patient's conditions
+    const profileResult = await query('SELECT conditions FROM patient_profiles WHERE user_id = $1', [userId]);
+    const conditions = profileResult.rows[0]?.conditions || [];
+
+    if (conditions.length === 0) {
+      return res.json([]);
+    }
+
+    // Search for experts matching conditions
+    const conditionPattern = conditions.map((_, i) => 
+      `specialties && $${i + 1} OR research_interests && $${i + 1}`
+    ).join(' OR ');
+    const params = conditions.map(c => [c]);
+
+    const result = await query(
+      `SELECT he.*, u.email 
+       FROM health_experts he
+       LEFT JOIN users u ON he.researcher_id = u.id
+       WHERE ${conditionPattern} 
+       ORDER BY he.is_platform_member DESC, he.created_at DESC 
+       LIMIT 20`,
+      params
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Search health experts
+router.get('/search', authenticate, authorize('patient'), async (req, res) => {
+  try {
+    const { query: searchQuery, specialty, location } = req.query;
+    let queryText = 'SELECT he.*, u.email FROM health_experts he LEFT JOIN users u ON he.researcher_id = u.id WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (searchQuery) {
+      queryText += ` AND (he.name ILIKE $${paramIndex} OR he.specialties::text ILIKE $${paramIndex} OR he.research_interests::text ILIKE $${paramIndex})`;
+      params.push(`%${searchQuery}%`);
+      paramIndex++;
+    }
+
+    if (specialty) {
+      queryText += ` AND $${paramIndex} = ANY(he.specialties)`;
+      params.push(specialty);
+      paramIndex++;
+    }
+
+    if (location) {
+      queryText += ` AND he.location ILIKE $${paramIndex}`;
+      params.push(`%${location}%`);
+      paramIndex++;
+    }
+
+    queryText += ' ORDER BY he.is_platform_member DESC LIMIT 20';
+
+    const result = await query(queryText, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Request meeting with expert
+router.post('/:id/meeting-request', authenticate, authorize('patient'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { patientName, patientContact, message } = req.body;
+    const patientId = req.user.userId;
+
+    // Check if expert exists
+    const expertResult = await query('SELECT researcher_id, is_platform_member FROM health_experts WHERE id = $1', [id]);
+    if (expertResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Expert not found' });
+    }
+
+    const expert = expertResult.rows[0];
+
+    // Create meeting request
+    const result = await query(
+      `INSERT INTO meeting_requests (patient_id, expert_id, patient_name, patient_contact, message, status)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [patientId, expert.researcher_id || id, patientName, patientContact, message, 'pending']
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Follow expert (add to favorites)
+router.post('/:id/follow', authenticate, authorize('patient'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    await query(
+      `INSERT INTO favorites (user_id, item_type, item_id)
+       VALUES ($1, 'expert', $2)
+       ON CONFLICT (user_id, item_type, item_id) DO NOTHING`,
+      [userId, id]
+    );
+
+    res.json({ message: 'Expert followed successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+module.exports = router;
+

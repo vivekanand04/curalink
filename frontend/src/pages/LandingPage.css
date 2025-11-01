@@ -1,0 +1,135 @@
+.landing-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.landing-container {
+  max-width: 800px;
+  width: 100%;
+}
+
+.landing-content {
+  background: white;
+  border-radius: 20px;
+  padding: 60px 40px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.landing-title {
+  font-size: 3rem;
+  color: #333;
+  margin-bottom: 20px;
+  font-weight: 700;
+}
+
+.landing-subtitle {
+  font-size: 1.2rem;
+  color: #666;
+  margin-bottom: 40px;
+  line-height: 1.6;
+}
+
+.cta-buttons {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-bottom: 60px;
+  flex-wrap: wrap;
+}
+
+.cta-button {
+  padding: 18px 40px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border-radius: 50px;
+  transition: all 0.3s ease;
+  color: white;
+  min-width: 250px;
+}
+
+.patient-cta {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.patient-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+}
+
+.researcher-cta {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.researcher-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(245, 87, 108, 0.4);
+}
+
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 30px;
+  margin-bottom: 40px;
+}
+
+.feature-card {
+  padding: 30px;
+  background: #f8f9fa;
+  border-radius: 15px;
+  transition: transform 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+}
+
+.feature-card h3 {
+  color: #333;
+  margin-bottom: 10px;
+  font-size: 1.3rem;
+}
+
+.feature-card p {
+  color: #666;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.landing-footer {
+  color: #666;
+  margin-top: 30px;
+}
+
+.landing-footer a {
+  color: #667eea;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .landing-content {
+    padding: 40px 20px;
+  }
+
+  .landing-title {
+    font-size: 2rem;
+  }
+
+  .landing-subtitle {
+    font-size: 1rem;
+  }
+
+  .cta-button {
+    min-width: 100%;
+  }
+
+  .landing-features {
+    grid-template-columns: 1fr;
+  }
+}
+
