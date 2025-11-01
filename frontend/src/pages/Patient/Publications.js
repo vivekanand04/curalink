@@ -17,7 +17,26 @@ const Publications = () => {
   const fetchPublications = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/publications/personalized`);
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
+      // First try to get personalized publications
+      try {
+        const personalizedResponse = await axios.get(`${API_URL}/publications/personalized`, { headers });
+        if (personalizedResponse.data && personalizedResponse.data.length > 0) {
+          setPublications(personalizedResponse.data);
+          setLoading(false);
+          return;
+        }
+      } catch (error) {
+        // If personalized fails or returns empty, fetch all publications
+        console.log('No personalized publications, fetching all publications');
+      }
+      
+      // Fallback to all publications if personalized returns empty
+      const response = await axios.get(`${API_URL}/publications`, { headers });
       setPublications(response.data);
     } catch (error) {
       toast.error('Failed to fetch publications');
@@ -34,8 +53,14 @@ const Publications = () => {
 
     setLoading(true);
     try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
       const response = await axios.get(`${API_URL}/publications/search`, {
         params: { query: searchQuery },
+        headers
       });
       setPublications(response.data);
     } catch (error) {
@@ -47,9 +72,14 @@ const Publications = () => {
 
   const handleAddFavorite = async (pubId) => {
     try {
+      const token = localStorage.getItem('token');
       await axios.post(`${API_URL}/favorites`, {
         itemType: 'publication',
         itemId: pubId,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       toast.success('Added to favorites');
     } catch (error) {

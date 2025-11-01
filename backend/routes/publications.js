@@ -21,12 +21,19 @@ router.get('/personalized', authenticate, async (req, res) => {
       }
 
       // Search for publications matching conditions
-      const conditionPattern = conditions.map((_, i) => `title ILIKE $${i + 1} OR abstract ILIKE $${i + 1}`).join(' OR ');
-      const params = conditions.flatMap(c => [`%${c}%`, `%${c}%`]);
+      // Build pattern with correct parameter indices
+      const conditionsPattern = conditions.map((_, i) => 
+        `(title ILIKE $${i * 2 + 1} OR abstract ILIKE $${i * 2 + 2})`
+      ).join(' OR ');
+      
+      const params = [];
+      conditions.forEach(condition => {
+        params.push(`%${condition}%`, `%${condition}%`);
+      });
 
       const result = await query(
         `SELECT * FROM publications 
-         WHERE ${conditionPattern} 
+         WHERE ${conditionsPattern}
          ORDER BY publication_date DESC 
          LIMIT 20`,
         params
@@ -39,8 +46,8 @@ router.get('/personalized', authenticate, async (req, res) => {
       res.json(result.rows);
     }
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error in personalized publications:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 

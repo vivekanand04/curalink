@@ -3,6 +3,25 @@ const router = express.Router();
 const { query } = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 
+// Get all health experts (for patients)
+router.get('/', authenticate, authorize('patient'), async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT he.*, u.email 
+       FROM health_experts he
+       LEFT JOIN users u ON he.researcher_id = u.id
+       WHERE he.is_platform_member = true OR he.researcher_id IS NOT NULL
+       ORDER BY he.is_platform_member DESC, he.researcher_id IS NOT NULL DESC, he.created_at DESC 
+       LIMIT 50`
+    );
+    console.log(`Returning ${result.rows.length} experts`);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching experts:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Get personalized health experts for patient
 router.get('/personalized', authenticate, authorize('patient'), async (req, res) => {
   try {
@@ -17,16 +36,21 @@ router.get('/personalized', authenticate, authorize('patient'), async (req, res)
     }
 
     // Search for experts matching conditions
-    const conditionPattern = conditions.map((_, i) => 
-      `specialties && $${i + 1} OR research_interests && $${i + 1}`
+    // Use array overlap operator (&&) or ILIKE for text search
+    const conditionPatterns = conditions.map((_, i) => 
+      `($${i * 2 + 1} = ANY(specialties) OR $${i * 2 + 1} = ANY(research_interests) OR specialties::text ILIKE $${i * 2 + 2} OR research_interests::text ILIKE $${i * 2 + 2})`
     ).join(' OR ');
-    const params = conditions.map(c => [c]);
+    
+    const params = [];
+    conditions.forEach(condition => {
+      params.push(condition, `%${condition}%`);
+    });
 
     const result = await query(
       `SELECT he.*, u.email 
        FROM health_experts he
        LEFT JOIN users u ON he.researcher_id = u.id
-       WHERE ${conditionPattern} 
+       WHERE ${conditionPatterns}
        ORDER BY he.is_platform_member DESC, he.created_at DESC 
        LIMIT 20`,
       params

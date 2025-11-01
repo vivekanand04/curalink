@@ -89,7 +89,12 @@ const ResearcherOnboarding = () => {
       toast.success('Profile created successfully!');
       navigate('/researcher/dashboard');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to create profile');
+      console.error('Error creating profile:', error);
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to create profile';
+      toast.error(errorMessage);
+      if (error.response?.status === 500) {
+        console.error('Server error details:', error.response?.data);
+      }
     } finally {
       setLoading(false);
     }

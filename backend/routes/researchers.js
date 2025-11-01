@@ -45,36 +45,52 @@ router.post('/profile', authenticate, authorize('researcher'), async (req, res) 
 
     // Automatically add researcher to health_experts table when they complete profile
     // This makes them visible to patients as health experts
-    const existingExpert = await query('SELECT id FROM health_experts WHERE researcher_id = $1', [userId]);
-    
-    // Get user email for health_experts table
-    const userResult = await query('SELECT email FROM users WHERE id = $1', [userId]);
-    const userEmail = userResult.rows[0]?.email;
+    try {
+      const existingExpert = await query('SELECT id FROM health_experts WHERE researcher_id = $1', [userId]);
+      
+      // Get user email for health_experts table
+      const userResult = await query('SELECT email FROM users WHERE id = $1', [userId]);
+      const userEmail = userResult.rows[0]?.email || '';
 
-    if (existingExpert.rows.length === 0) {
-      // Create new health expert entry
-      await query(
-        `INSERT INTO health_experts 
-         (researcher_id, name, specialties, research_interests, email, is_platform_member)
-         VALUES ($1, $2, $3, $4, $5, true)
-         ON CONFLICT (researcher_id) DO UPDATE
-         SET name = $2, specialties = $3, research_interests = $4, email = $5, is_platform_member = true, updated_at = CURRENT_TIMESTAMP`,
-        [userId, name, specialties, researchInterests, userEmail]
-      );
-    } else {
-      // Update existing health expert entry
-      await query(
-        `UPDATE health_experts 
-         SET name = $1, specialties = $2, research_interests = $3, email = $4, is_platform_member = true, updated_at = CURRENT_TIMESTAMP
-         WHERE researcher_id = $5`,
-        [name, specialties, researchInterests, userEmail, userId]
-      );
+      // Ensure arrays are properly formatted
+      const specialtiesArray = Array.isArray(specialties) ? specialties : (specialties ? [specialties] : []);
+      const interestsArray = Array.isArray(researchInterests) ? researchInterests : (researchInterests ? [researchInterests] : []);
+
+      if (existingExpert.rows.length === 0) {
+        // Create new health expert entry
+        await query(
+          `INSERT INTO health_experts 
+           (researcher_id, name, specialties, research_interests, email, is_platform_member)
+           VALUES ($1, $2, $3, $4, $5, true)`,
+          [userId, name, specialtiesArray, interestsArray, userEmail]
+        );
+      } else {
+        // Update existing health expert entry
+        await query(
+          `UPDATE health_experts 
+           SET name = $1, specialties = $2, research_interests = $3, email = $4, is_platform_member = true, updated_at = CURRENT_TIMESTAMP
+           WHERE researcher_id = $5`,
+          [name, specialtiesArray, interestsArray, userEmail, userId]
+        );
+      }
+    } catch (expertError) {
+      console.error('Error updating health_experts:', expertError);
+      // Don't fail the entire request if health_experts update fails
+      // Log the error but continue
     }
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error in researcher profile creation:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      userId: req.user?.userId
+    });
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    });
   }
 });
 

@@ -23,7 +23,26 @@ const HealthExperts = () => {
   const fetchExperts = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/experts/personalized`);
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
+      // First try to get personalized experts
+      try {
+        const personalizedResponse = await axios.get(`${API_URL}/experts/personalized`, { headers });
+        if (personalizedResponse.data && personalizedResponse.data.length > 0) {
+          setExperts(personalizedResponse.data);
+          setLoading(false);
+          return;
+        }
+      } catch (error) {
+        // If personalized fails or returns empty, fetch all experts
+        console.log('No personalized experts, fetching all experts');
+      }
+      
+      // Fallback to all experts if personalized returns empty
+      const response = await axios.get(`${API_URL}/experts`, { headers });
       setExperts(response.data);
     } catch (error) {
       toast.error('Failed to fetch experts');
@@ -35,8 +54,14 @@ const HealthExperts = () => {
   const handleSearch = async () => {
     setLoading(true);
     try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
       const response = await axios.get(`${API_URL}/experts/search`, {
         params: { query: searchQuery },
+        headers
       });
       setExperts(response.data);
     } catch (error) {
@@ -48,7 +73,12 @@ const HealthExperts = () => {
 
   const handleFollow = async (expertId) => {
     try {
-      await axios.post(`${API_URL}/experts/${expertId}/follow`);
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/experts/${expertId}/follow`, {}, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       toast.success('Expert followed successfully');
     } catch (error) {
       toast.error('Failed to follow expert');
@@ -62,7 +92,12 @@ const HealthExperts = () => {
     }
 
     try {
-      await axios.post(`${API_URL}/experts/${expertId}/meeting-request`, meetingForm);
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/experts/${expertId}/meeting-request`, meetingForm, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       toast.success('Meeting request sent successfully');
       setShowMeetingForm(null);
       setMeetingForm({ patientName: '', patientContact: '', message: '' });

@@ -18,6 +18,7 @@ const PatientDashboard = () => {
   const [clinicalTrials, setClinicalTrials] = useState([]);
   const [publications, setPublications] = useState([]);
   const [experts, setExperts] = useState([]);
+  const [loadingData, setLoadingData] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -53,23 +54,84 @@ const PatientDashboard = () => {
   };
 
   const fetchPersonalizedData = async () => {
+    setLoadingData(true);
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Not authenticated');
+        return;
+      }
+      
       const headers = {
         'Authorization': `Bearer ${token}`
       };
       
-      const [trialsRes, publicationsRes, expertsRes] = await Promise.all([
-        axios.get(`${API_URL}/clinical-trials/personalized`, { headers }),
-        axios.get(`${API_URL}/publications/personalized`, { headers }),
-        axios.get(`${API_URL}/experts/personalized`, { headers }),
+      // Fetch all data (will show personalized if available, otherwise all)
+      const fetchTrials = async () => {
+        try {
+          const personalized = await axios.get(`${API_URL}/clinical-trials/personalized`, { headers });
+          if (personalized.data && personalized.data.length > 0) {
+            return personalized.data;
+          }
+        } catch (error) {
+          console.log('Personalized trials not available, fetching all');
+        }
+        const all = await axios.get(`${API_URL}/clinical-trials`, { headers });
+        return all.data || [];
+      };
+
+      const fetchPublications = async () => {
+        try {
+          const personalized = await axios.get(`${API_URL}/publications/personalized`, { headers });
+          if (personalized.data && personalized.data.length > 0) {
+            return personalized.data;
+          }
+        } catch (error) {
+          console.log('Personalized publications not available, fetching all');
+        }
+        const all = await axios.get(`${API_URL}/publications`, { headers });
+        return all.data || [];
+      };
+
+      const fetchExperts = async () => {
+        try {
+          const personalized = await axios.get(`${API_URL}/experts/personalized`, { headers });
+          if (personalized.data && personalized.data.length > 0) {
+            return personalized.data;
+          }
+        } catch (error) {
+          console.log('Personalized experts not available, fetching all', error.response?.data || error.message);
+        }
+        try {
+          const all = await axios.get(`${API_URL}/experts`, { headers });
+          console.log('Fetched experts:', all.data);
+          return all.data || [];
+        } catch (error) {
+          console.error('Error fetching all experts:', error.response?.data || error.message);
+          return [];
+        }
+      };
+
+      const [trialsData, publicationsData, expertsData] = await Promise.all([
+        fetchTrials(),
+        fetchPublications(),
+        fetchExperts(),
       ]);
 
-      setClinicalTrials(trialsRes.data);
-      setPublications(publicationsRes.data);
-      setExperts(expertsRes.data);
+      console.log('Setting dashboard data:', { 
+        trials: trialsData?.length || 0, 
+        publications: publicationsData?.length || 0, 
+        experts: expertsData?.length || 0 
+      });
+
+      setClinicalTrials(trialsData || []);
+      setPublications(publicationsData || []);
+      setExperts(expertsData || []);
     } catch (error) {
       console.error('Error fetching personalized data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setLoadingData(false);
     }
   };
 
@@ -183,17 +245,34 @@ const PatientDashboard = () => {
 
               <section className="dashboard-section">
                 <h2>Recommended Health Experts</h2>
-                <div className="cards-grid">
-                  {experts.slice(0, 3).map((expert) => (
-                    <div key={expert.id} className="card">
-                      <h3>{expert.name}</h3>
-                      <p className="card-meta">Specialties: {expert.specialties?.join(', ')}</p>
-                      {expert.location && <p className="card-meta">Location: {expert.location}</p>}
-                    </div>
-                  ))}
-                </div>
-                {experts.length === 0 && (
-                  <p className="empty-state">No experts found.</p>
+                {loadingData ? (
+                  <p>Loading experts...</p>
+                ) : (
+                  <>
+                    {experts && experts.length > 0 ? (
+                      <div className="cards-grid">
+                        {experts.slice(0, 3).map((expert) => (
+                          <div key={expert.id} className="card">
+                            <h3>{expert.name || 'Expert'}</h3>
+                            {expert.specialties && expert.specialties.length > 0 && (
+                              <p className="card-meta">Specialties: {expert.specialties.join(', ')}</p>
+                            )}
+                            {expert.research_interests && expert.research_interests.length > 0 && (
+                              <p className="card-meta">Research Interests: {expert.research_interests.join(', ')}</p>
+                            )}
+                            {expert.location && (
+                              <p className="card-meta">Location: {expert.location}</p>
+                            )}
+                            <p className="card-meta">
+                              <strong>Status:</strong> {expert.is_platform_member ? 'Platform Member' : 'External Expert'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="empty-state">No experts found. Researchers who complete their profiles will appear here.</p>
+                    )}
+                  </>
                 )}
               </section>
             </div>

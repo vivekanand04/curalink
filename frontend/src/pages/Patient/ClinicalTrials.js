@@ -19,7 +19,26 @@ const ClinicalTrials = () => {
   const fetchTrials = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/clinical-trials/personalized`);
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
+      // First try to get personalized trials
+      try {
+        const personalizedResponse = await axios.get(`${API_URL}/clinical-trials/personalized`, { headers });
+        if (personalizedResponse.data && personalizedResponse.data.length > 0) {
+          setTrials(personalizedResponse.data);
+          setLoading(false);
+          return;
+        }
+      } catch (error) {
+        // If personalized fails or returns empty, fetch all trials
+        console.log('No personalized trials, fetching all trials');
+      }
+      
+      // Fallback to all trials if personalized returns empty
+      const response = await axios.get(`${API_URL}/clinical-trials`, { headers });
       setTrials(response.data);
     } catch (error) {
       toast.error('Failed to fetch clinical trials');
@@ -31,12 +50,17 @@ const ClinicalTrials = () => {
   const handleSearch = async () => {
     setLoading(true);
     try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
       const params = {};
       if (searchQuery) params.search = searchQuery;
       if (statusFilter) params.status = statusFilter;
       if (locationFilter) params.location = locationFilter;
 
-      const response = await axios.get(`${API_URL}/clinical-trials`, { params });
+      const response = await axios.get(`${API_URL}/clinical-trials`, { params, headers });
       setTrials(response.data);
     } catch (error) {
       toast.error('Search failed');
@@ -47,9 +71,14 @@ const ClinicalTrials = () => {
 
   const handleAddFavorite = async (trialId) => {
     try {
+      const token = localStorage.getItem('token');
       await axios.post(`${API_URL}/favorites`, {
         itemType: 'clinical_trial',
         itemId: trialId,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       toast.success('Added to favorites');
     } catch (error) {
