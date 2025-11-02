@@ -37,10 +37,13 @@ const PatientDashboard = () => {
 
   useEffect(() => {
     fetchProfile();
-    if (activeTab === 'dashboard') {
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'dashboard' && profile) {
       fetchDashboardData();
     }
-  }, [activeTab]);
+  }, [activeTab, profile]);
 
   const fetchDashboardData = async () => {
     await Promise.all([
@@ -115,48 +118,65 @@ const PatientDashboard = () => {
         'Authorization': `Bearer ${token}`
       };
       
-      // Fetch all data (will show personalized if available, otherwise all)
+      // Get current profile - ensure we have the latest profile data
+      let currentProfile = profile;
+      if (!currentProfile || !currentProfile.conditions || !Array.isArray(currentProfile.conditions) || currentProfile.conditions.length === 0) {
+        try {
+          const profileRes = await axios.get(`${API_URL}/patients/profile`, { headers });
+          currentProfile = profileRes.data || {};
+          if (currentProfile && Object.keys(currentProfile).length > 0) {
+            setProfile(currentProfile);
+          }
+        } catch (error) {
+          console.error('Could not fetch profile:', error);
+          setClinicalTrials([]);
+          setPublications([]);
+          setExperts([]);
+          setLoadingData(false);
+          return;
+        }
+      }
+
+      // Check if patient has conditions
+      if (!currentProfile || !currentProfile.conditions || !Array.isArray(currentProfile.conditions) || currentProfile.conditions.length === 0) {
+        console.log('No conditions found in profile. Showing empty results.');
+        setClinicalTrials([]);
+        setPublications([]);
+        setExperts([]);
+        setLoadingData(false);
+        return;
+      }
+      
+      // Fetch ONLY personalized data based on patient's conditions - NO FALLBACK
       const fetchTrials = async () => {
         try {
           const personalized = await axios.get(`${API_URL}/clinical-trials/personalized`, { headers });
-          if (personalized.data && personalized.data.length > 0) {
-            return personalized.data;
-          }
+          console.log('Personalized clinical trials:', personalized.data?.length || 0, 'for conditions:', currentProfile.conditions);
+          return personalized.data || [];
         } catch (error) {
-          console.log('Personalized trials not available, fetching all');
+          console.error('Error fetching personalized trials:', error.response?.data || error.message);
+          return [];
         }
-        const all = await axios.get(`${API_URL}/clinical-trials`, { headers });
-        return all.data || [];
       };
 
       const fetchPublications = async () => {
         try {
           const personalized = await axios.get(`${API_URL}/publications/personalized`, { headers });
-          if (personalized.data && personalized.data.length > 0) {
-            return personalized.data;
-          }
+          console.log('Personalized publications:', personalized.data?.length || 0, 'for conditions:', currentProfile.conditions);
+          return personalized.data || [];
         } catch (error) {
-          console.log('Personalized publications not available, fetching all');
+          console.error('Error fetching personalized publications:', error.response?.data || error.message);
+          return [];
         }
-        const all = await axios.get(`${API_URL}/publications`, { headers });
-        return all.data || [];
       };
 
       const fetchExperts = async () => {
         try {
           const personalized = await axios.get(`${API_URL}/experts/personalized`, { headers });
-          if (personalized.data && personalized.data.length > 0) {
-            return personalized.data;
-          }
+          console.log('Personalized experts:', personalized.data?.length || 0, 'for conditions:', currentProfile.conditions);
+          return personalized.data || [];
         } catch (error) {
-          console.log('Personalized experts not available, fetching all', error.response?.data || error.message);
-        }
-        try {
-          const all = await axios.get(`${API_URL}/experts`, { headers });
-          console.log('Fetched experts:', all.data);
-          return all.data || [];
-        } catch (error) {
-          console.error('Error fetching all experts:', error.response?.data || error.message);
+          console.error('Error fetching personalized experts:', error.response?.data || error.message);
           return [];
         }
       };
@@ -167,10 +187,11 @@ const PatientDashboard = () => {
         fetchExperts(),
       ]);
 
-      console.log('Setting dashboard data:', { 
+      console.log('Setting filtered dashboard data:', { 
         trials: trialsData?.length || 0, 
         publications: publicationsData?.length || 0, 
-        experts: expertsData?.length || 0 
+        experts: expertsData?.length || 0,
+        patientConditions: currentProfile?.conditions || []
       });
 
       setClinicalTrials(trialsData || []);
@@ -179,6 +200,9 @@ const PatientDashboard = () => {
     } catch (error) {
       console.error('Error fetching personalized data:', error);
       toast.error('Failed to load dashboard data');
+      setClinicalTrials([]);
+      setPublications([]);
+      setExperts([]);
     } finally {
       setLoadingData(false);
     }
@@ -517,7 +541,11 @@ const PatientDashboard = () => {
 
             <div className="dashboard-sections">
               <section className="dashboard-section">
-                <h2>Recommended Clinical Trials</h2>
+                <h2>
+                  {profile?.conditions && profile.conditions.length > 0 
+                    ? `Recommended Clinical Trials for ${profile.conditions.join(', ')}`
+                    : 'Recommended Clinical Trials'}
+                </h2>
                 <div className="cards-grid">
                   {clinicalTrials.slice(0, 3).map((trial) => (
                     <div key={trial.id} className="card">
@@ -539,7 +567,11 @@ const PatientDashboard = () => {
               </section>
 
               <section className="dashboard-section">
-                <h2>Recommended Publications</h2>
+                <h2>
+                  {profile?.conditions && profile.conditions.length > 0 
+                    ? `Recommended Publications for ${profile.conditions.join(', ')}`
+                    : 'Recommended Publications'}
+                </h2>
                 <div className="cards-grid">
                   {publications.slice(0, 3).map((pub) => (
                     <div key={pub.id} className="card">
@@ -565,7 +597,11 @@ const PatientDashboard = () => {
               </section>
 
               <section className="dashboard-section">
-                <h2>Recommended Health Experts</h2>
+                <h2>
+                  {profile?.conditions && profile.conditions.length > 0 
+                    ? `Recommended Health Experts for ${profile.conditions.join(', ')}`
+                    : 'Recommended Health Experts'}
+                </h2>
                 {loadingData ? (
                   <p>Loading experts...</p>
                 ) : (
