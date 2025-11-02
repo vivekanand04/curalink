@@ -107,5 +107,42 @@ router.get('/me', authenticate, async (req, res) => {
   }
 });
 
+// Change account type
+router.post('/change-account-type', authenticate, async (req, res) => {
+  try {
+    const { userType } = req.body;
+
+    if (!userType || !['patient', 'researcher'].includes(userType)) {
+      return res.status(400).json({ message: 'Invalid account type' });
+    }
+
+    // Update user type
+    await query(
+      'UPDATE users SET user_type = $1 WHERE id = $2',
+      [userType, req.user.userId]
+    );
+
+    // Generate new token with updated user type
+    const token = jwt.sign(
+      { userId: req.user.userId, email: req.user.email, userType: userType },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      message: 'Account type changed successfully',
+      user: {
+        id: req.user.userId,
+        email: req.user.email,
+        userType: userType,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;
 
