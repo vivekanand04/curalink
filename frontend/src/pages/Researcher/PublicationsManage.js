@@ -8,7 +8,10 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 const PublicationsManage = () => {
   const [publications, setPublications] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingPublication, setEditingPublication] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [favorites, setFavorites] = useState({});
+  const [expandedAISummaries, setExpandedAISummaries] = useState({});
   const [formData, setFormData] = useState({
     title: '',
     authors: '',
@@ -21,7 +24,28 @@ const PublicationsManage = () => {
 
   useEffect(() => {
     fetchPublications();
+    fetchFavorites();
   }, []);
+
+  const fetchFavorites = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/favorites`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const favoritesMap = {};
+      response.data.forEach(fav => {
+        if (fav.item_type === 'publication') {
+          favoritesMap[`publication_${fav.item_id}`] = true;
+        }
+      });
+      setFavorites(favoritesMap);
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+    }
+  };
 
   const fetchPublications = async () => {
     setLoading(true);
@@ -40,21 +64,98 @@ const PublicationsManage = () => {
     }
   };
 
-  const handleAddFavorite = async (pubId) => {
+  const handleToggleFavorite = async (pubId) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/favorites`, {
-        itemType: 'publication',
-        itemId: pubId,
-      }, {
+      const isFavorite = favorites[`publication_${pubId}`];
+      
+      if (isFavorite) {
+        // Remove from favorites
+        await axios.delete(`${API_URL}/favorites/publication/${pubId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        setFavorites(prev => {
+          const newFavs = { ...prev };
+          delete newFavs[`publication_${pubId}`];
+          return newFavs;
+        });
+        toast.success('Removed from favorites');
+      } else {
+        // Add to favorites
+        await axios.post(`${API_URL}/favorites`, {
+          itemType: 'publication',
+          itemId: pubId,
+        }, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        setFavorites(prev => ({
+          ...prev,
+          [`publication_${pubId}`]: true
+        }));
+        toast.success('Added to favorites');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update favorites');
+    }
+  };
+
+  const toggleAISummary = (pubId) => {
+    setExpandedAISummaries(prev => ({
+      ...prev,
+      [pubId]: !prev[pubId]
+    }));
+  };
+
+  const handleEdit = (pub) => {
+    setEditingPublication(pub);
+    setFormData({
+      title: pub.title || '',
+      authors: pub.authors ? (Array.isArray(pub.authors) ? pub.authors.join(', ') : pub.authors) : '',
+      journal: pub.journal || '',
+      publicationDate: pub.publication_date ? pub.publication_date.split('T')[0] : '',
+      doi: pub.doi || '',
+      abstract: pub.abstract || '',
+      fullTextUrl: pub.full_text_url || '',
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = async (pubId) => {
+    if (!window.confirm('Are you sure you want to delete this publication?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_URL}/publications/${pubId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      toast.success('Added to favorites');
+      toast.success('Publication deleted successfully');
+      fetchPublications();
+      fetchFavorites();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to add to favorites');
+      toast.error(error.response?.data?.message || 'Failed to delete publication');
     }
+  };
+
+  const handleCancelForm = () => {
+    setShowForm(false);
+    setEditingPublication(null);
+    setFormData({
+      title: '',
+      authors: '',
+      journal: '',
+      publicationDate: '',
+      doi: '',
+      abstract: '',
+      fullTextUrl: '',
+    });
   };
 
   const handleSubmit = async () => {
@@ -67,7 +168,7 @@ const PublicationsManage = () => {
       const token = localStorage.getItem('token');
       const authorsArray = formData.authors.split(',').map(a => a.trim()).filter(a => a);
       
-      await axios.post(`${API_URL}/publications`, {
+      const payload = {
         title: formData.title,
         authors: authorsArray,
         journal: formData.journal || null,
@@ -75,26 +176,29 @@ const PublicationsManage = () => {
         doi: formData.doi || null,
         abstract: formData.abstract || null,
         fullTextUrl: formData.fullTextUrl || null,
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      };
+
+      if (editingPublication) {
+        await axios.put(`${API_URL}/publications/${editingPublication.id}`, payload, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        toast.success('Publication updated successfully');
+      } else {
+        await axios.post(`${API_URL}/publications`, payload, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        toast.success('Publication added successfully');
+      }
       
-      toast.success('Publication added successfully');
-      setShowForm(false);
-      setFormData({
-        title: '',
-        authors: '',
-        journal: '',
-        publicationDate: '',
-        doi: '',
-        abstract: '',
-        fullTextUrl: '',
-      });
+      handleCancelForm();
       fetchPublications();
+      fetchFavorites();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to add publication');
+      toast.error(error.response?.data?.message || `Failed to ${editingPublication ? 'update' : 'add'} publication`);
     }
   };
 
@@ -109,79 +213,111 @@ const PublicationsManage = () => {
       <p className="subtitle">Manage and add publications to the database</p>
 
       {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Add New Publication</h2>
-            <div className="form-group">
-              <label>Title *</label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Publication title"
-              />
-            </div>
-            <div className="form-group">
-              <label>Authors (comma-separated)</label>
-              <input
-                type="text"
-                value={formData.authors}
-                onChange={(e) => setFormData({ ...formData, authors: e.target.value })}
-                placeholder="Author 1, Author 2, Author 3"
-              />
-            </div>
-            <div className="form-group">
-              <label>Journal</label>
-              <input
-                type="text"
-                value={formData.journal}
-                onChange={(e) => setFormData({ ...formData, journal: e.target.value })}
-                placeholder="Journal name"
-              />
-            </div>
-            <div className="form-group">
-              <label>Publication Date</label>
-              <input
-                type="date"
-                value={formData.publicationDate}
-                onChange={(e) => setFormData({ ...formData, publicationDate: e.target.value })}
-              />
-            </div>
-            <div className="form-group">
-              <label>DOI</label>
-              <input
-                type="text"
-                value={formData.doi}
-                onChange={(e) => setFormData({ ...formData, doi: e.target.value })}
-                placeholder="DOI"
-              />
-            </div>
-            <div className="form-group">
-              <label>Abstract</label>
-              <textarea
-                value={formData.abstract}
-                onChange={(e) => setFormData({ ...formData, abstract: e.target.value })}
-                placeholder="Publication abstract"
-                rows="4"
-              />
-            </div>
-            <div className="form-group">
-              <label>Full Text URL</label>
-              <input
-                type="url"
-                value={formData.fullTextUrl}
-                onChange={(e) => setFormData({ ...formData, fullTextUrl: e.target.value })}
-                placeholder="https://..."
-              />
-            </div>
-            <div className="form-actions">
-              <button onClick={() => setShowForm(false)} className="secondary-button">
-                Cancel
-              </button>
-              <button onClick={handleSubmit} className="primary-button">
-                Add Publication
+        <div className="modal-overlay" onClick={handleCancelForm}>
+          <div className="modal-content publication-form" onClick={(e) => e.stopPropagation()}>
+            <div className="form-header">
+              <h2>{editingPublication ? 'Edit Publication' : 'Create New Publication'}</h2>
+              <button 
+                className="close-button" 
+                onClick={handleCancelForm}
+                aria-label="Close"
+              >
+                ×
               </button>
             </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+              <div className="form-grid">
+                <div className="form-group full-width">
+                  <label htmlFor="title">Title <span className="required">*</span></label>
+                  <input
+                    id="title"
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="Enter publication title"
+                    required
+                  />
+                </div>
+                
+                <div className="form-group full-width">
+                  <label htmlFor="authors">Authors <span className="required-text">(comma-separated)</span></label>
+                  <input
+                    id="authors"
+                    type="text"
+                    value={formData.authors}
+                    onChange={(e) => setFormData({ ...formData, authors: e.target.value })}
+                    placeholder="Author 1, Author 2, Author 3"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="journal">Journal</label>
+                  <input
+                    id="journal"
+                    type="text"
+                    value={formData.journal}
+                    onChange={(e) => setFormData({ ...formData, journal: e.target.value })}
+                    placeholder="e.g., Nature, Science"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="publicationDate">Publication Date</label>
+                  <input
+                    id="publicationDate"
+                    type="date"
+                    value={formData.publicationDate}
+                    onChange={(e) => setFormData({ ...formData, publicationDate: e.target.value })}
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="doi">DOI</label>
+                  <input
+                    id="doi"
+                    type="text"
+                    value={formData.doi}
+                    onChange={(e) => setFormData({ ...formData, doi: e.target.value })}
+                    placeholder="e.g., 10.1234/example"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="fullTextUrl">Full Text URL</label>
+                  <input
+                    id="fullTextUrl"
+                    type="url"
+                    value={formData.fullTextUrl}
+                    onChange={(e) => setFormData({ ...formData, fullTextUrl: e.target.value })}
+                    placeholder="https://..."
+                  />
+                </div>
+                
+                <div className="form-group full-width">
+                  <label htmlFor="abstract">Abstract</label>
+                  <textarea
+                    id="abstract"
+                    value={formData.abstract}
+                    onChange={(e) => setFormData({ ...formData, abstract: e.target.value })}
+                    placeholder="Enter publication abstract"
+                    rows="5"
+                  />
+                </div>
+              </div>
+              
+              <div className="form-actions">
+                <button
+                  type="button"
+                  onClick={handleCancelForm}
+                  className="secondary-button"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="primary-button">
+                  {editingPublication ? 'Update Publication' : 'Create Publication'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -191,50 +327,44 @@ const PublicationsManage = () => {
       ) : (
         <div className="cards-grid">
           {publications.map((pub) => (
-            <div key={pub.id} className="card">
-              <h3>{pub.title}</h3>
+            <div key={pub.id} className="card modern-card publication-card">
+              <div className="card-favorite-icon" onClick={() => handleToggleFavorite(pub.id)}>
+                <span className={`star-icon ${favorites[`publication_${pub.id}`] ? 'star-filled' : ''}`}>
+                  {favorites[`publication_${pub.id}`] ? '★' : '☆'}
+                </span>
+              </div>
+              <h3 className="card-title">{pub.title}</h3>
+              {pub.journal && pub.publication_date && (
+                <p className="card-source">
+                  {pub.journal} • {new Date(pub.publication_date).getFullYear()}
+                </p>
+              )}
               {pub.authors && pub.authors.length > 0 && (
-                <p className="card-meta">
-                  <strong>Authors:</strong> {pub.authors.join(', ')}
+                <p className="card-authors">
+                  By {pub.authors.slice(0, 2).map(author => author.includes('Dr.') ? author : `Dr. ${author}`).join(', ')}
+                  {pub.authors.length > 2 && ' et al.'}
                 </p>
               )}
-              {pub.journal && (
-                <p className="card-meta">
-                  <strong>Journal:</strong> {pub.journal}
-                </p>
-              )}
-              {pub.publication_date && (
-                <p className="card-meta">
-                  <strong>Published:</strong> {new Date(pub.publication_date).toLocaleDateString()}
-                </p>
-              )}
-              {pub.abstract && (
-                <p className="card-description">{pub.abstract.substring(0, 200)}...</p>
-              )}
-              {pub.ai_summary && (
-                <div className="ai-summary">
-                  <strong>AI Summary:</strong> {pub.ai_summary}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
+                <div style={{ display: 'flex', gap: '15px' }}>
+                  <span className="action-link" onClick={() => handleEdit(pub)}>
+                    Edit
+                  </span>
+                  <span className="action-link" onClick={() => handleDelete(pub.id)} style={{ color: '#dc3545' }}>
+                    Delete
+                  </span>
+                </div>
+                <span className="action-link" onClick={() => toggleAISummary(pub.id)}>
+                  {expandedAISummaries[pub.id] ? 'Hide AI Summary' : 'Get AI Summary'}
+                </span>
+              </div>
+              {expandedAISummaries[pub.id] && pub.ai_summary && (
+                <div className="ai-summary-container">
+                  <div className="ai-summary-content">
+                    {pub.ai_summary}
+                  </div>
                 </div>
               )}
-              <div className="card-actions">
-                <button
-                  onClick={() => handleAddFavorite(pub.id)}
-                  className="secondary-button"
-                >
-                  Add to Favorites
-                </button>
-                {pub.full_text_url && (
-                  <a
-                    href={pub.full_text_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="link-button primary-button"
-                    style={{ display: 'inline-block', marginLeft: '10px' }}
-                  >
-                    Read Full Paper
-                  </a>
-                )}
-              </div>
             </div>
           ))}
         </div>

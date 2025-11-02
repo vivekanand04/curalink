@@ -143,8 +143,15 @@ router.post('/', authenticate, authorize('researcher'), async (req, res) => {
       return res.status(400).json({ message: 'Title is required' });
     }
 
-    // Generate AI summary
-    const aiSummary = await generateAISummary(abstract || title);
+    // Generate AI summary (handle errors gracefully)
+    let aiSummary = null;
+    try {
+      aiSummary = await generateAISummary(abstract || title);
+    } catch (aiError) {
+      console.error('Error generating AI summary:', aiError);
+      // Continue without AI summary - it's not critical
+      aiSummary = null;
+    }
 
     const result = await query(
       `INSERT INTO publications 
@@ -168,6 +175,83 @@ router.post('/', authenticate, authorize('researcher'), async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update publication (for researchers)
+router.put('/:id', authenticate, authorize('researcher'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      authors,
+      journal,
+      publicationDate,
+      doi,
+      abstract,
+      fullTextUrl,
+    } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ message: 'Title is required' });
+    }
+
+    // Generate updated AI summary (handle errors gracefully)
+    let aiSummary = null;
+    try {
+      aiSummary = await generateAISummary(abstract || title);
+    } catch (aiError) {
+      console.error('Error generating AI summary:', aiError);
+      // Try to keep existing AI summary if update fails
+      const existingPub = await query('SELECT ai_summary FROM publications WHERE id = $1', [id]);
+      aiSummary = existingPub.rows[0]?.ai_summary || null;
+    }
+
+    const result = await query(
+      `UPDATE publications 
+       SET title = $1, authors = $2, journal = $3, publication_date = $4, 
+           doi = $5, abstract = $6, full_text_url = $7, ai_summary = $8
+       WHERE id = $9 
+       RETURNING *`,
+      [
+        title,
+        authors || [],
+        journal || null,
+        publicationDate || null,
+        doi || null,
+        abstract || null,
+        fullTextUrl || null,
+        aiSummary,
+        id,
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Publication not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating publication:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+});
+
+// Delete publication (for researchers)
+router.delete('/:id', authenticate, authorize('researcher'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const checkResult = await query('SELECT id FROM publications WHERE id = $1', [id]);
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Publication not found' });
+    }
+
+    await query('DELETE FROM publications WHERE id = $1', [id]);
+    res.json({ message: 'Publication deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting publication:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
   }
 });
 
