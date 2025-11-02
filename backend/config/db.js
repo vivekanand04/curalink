@@ -101,6 +101,8 @@ const initializeDB = async () => {
         status VARCHAR(50),
         location VARCHAR(255),
         eligibility_criteria TEXT,
+        current_participants INTEGER DEFAULT 0,
+        target_participants INTEGER,
         ai_summary TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -191,14 +193,61 @@ const initializeDB = async () => {
         UNIQUE(requester_id, receiver_id)
       );
 
+      CREATE TABLE IF NOT EXISTS collaborator_messages (
+        id SERIAL PRIMARY KEY,
+        connection_id INTEGER REFERENCES collaborator_connections(id) ON DELETE CASCADE,
+        sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        receiver_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        message TEXT NOT NULL,
+        is_read BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_users_user_type ON users(user_type);
       CREATE INDEX IF NOT EXISTS idx_patient_profiles_user_id ON patient_profiles(user_id);
       CREATE INDEX IF NOT EXISTS idx_researcher_profiles_user_id ON researcher_profiles(user_id);
       CREATE INDEX IF NOT EXISTS idx_clinical_trials_condition ON clinical_trials(condition);
       CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id);
+      CREATE INDEX IF NOT EXISTS idx_collaborator_messages_connection ON collaborator_messages(connection_id);
+      CREATE INDEX IF NOT EXISTS idx_collaborator_messages_sender_receiver ON collaborator_messages(sender_id, receiver_id);
     `);
     console.log('Database tables initialized successfully');
+
+    // Add missing columns to clinical_trials table if they don't exist
+    try {
+      // Check if current_participants column exists
+      const checkCurrent = await pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='clinical_trials' AND column_name='current_participants'
+      `);
+      
+      if (checkCurrent.rows.length === 0) {
+        await pool.query(`
+          ALTER TABLE clinical_trials 
+          ADD COLUMN current_participants INTEGER DEFAULT 0
+        `);
+        console.log('Added current_participants column to clinical_trials table');
+      }
+
+      // Check if target_participants column exists
+      const checkTarget = await pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='clinical_trials' AND column_name='target_participants'
+      `);
+      
+      if (checkTarget.rows.length === 0) {
+        await pool.query(`
+          ALTER TABLE clinical_trials 
+          ADD COLUMN target_participants INTEGER
+        `);
+        console.log('Added target_participants column to clinical_trials table');
+      }
+    } catch (error) {
+      console.error('Error adding columns to clinical_trials:', error.message);
+    }
 
     // Initialize default forum categories
     const defaultCategories = [

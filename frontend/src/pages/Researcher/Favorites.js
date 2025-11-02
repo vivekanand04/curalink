@@ -9,8 +9,9 @@ const Favorites = () => {
   const [favorites, setFavorites] = useState([]);
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(false);
-
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [favoriteDetails, setFavoriteDetails] = useState({});
+  const [expandedAISummaries, setExpandedAISummaries] = useState({});
 
   useEffect(() => {
     fetchFavorites();
@@ -19,11 +20,16 @@ const Favorites = () => {
   useEffect(() => {
     if (favorites.length > 0) {
       fetchFavoriteDetails();
+    } else {
+      // Clear details when favorites are empty
+      setFavoriteDetails({});
     }
   }, [favorites]);
 
   const fetchFavorites = async () => {
     setLoading(true);
+    // Clear old details immediately to prevent showing stale data
+    setFavoriteDetails({});
     try {
       const token = localStorage.getItem('token');
       const params = filter !== 'all' ? { type: filter } : {};
@@ -42,6 +48,9 @@ const Favorites = () => {
   };
 
   const fetchFavoriteDetails = async () => {
+    setDetailsLoading(true);
+    // Clear old details before fetching new ones
+    setFavoriteDetails({});
     try {
       const token = localStorage.getItem('token');
       const headers = {
@@ -49,28 +58,39 @@ const Favorites = () => {
       };
       const details = {};
 
-      for (const fav of favorites) {
+      // Fetch all details in parallel for better performance
+      const detailPromises = favorites.map(async (fav) => {
         try {
           if (fav.item_type === 'clinical_trial') {
             const response = await axios.get(`${API_URL}/clinical-trials/${fav.item_id}`, { headers });
-            details[fav.id] = { type: 'clinical_trial', data: response.data };
+            return { key: fav.id, value: { type: 'clinical_trial', data: response.data } };
           } else if (fav.item_type === 'publication') {
             const response = await axios.get(`${API_URL}/publications`, { headers });
             const pub = response.data.find(p => p.id === fav.item_id);
-            if (pub) details[fav.id] = { type: 'publication', data: pub };
+            if (pub) return { key: fav.id, value: { type: 'publication', data: pub } };
           } else if (fav.item_type === 'collaborator') {
             const response = await axios.get(`${API_URL}/collaborators/search`, { headers });
             const collab = response.data.find(c => c.user_id === fav.item_id);
-            if (collab) details[fav.id] = { type: 'collaborator', data: collab };
+            if (collab) return { key: fav.id, value: { type: 'collaborator', data: collab } };
           }
         } catch (error) {
           console.error(`Error fetching details for ${fav.item_type} ${fav.item_id}:`, error);
         }
-      }
+        return null;
+      });
+
+      const results = await Promise.all(detailPromises);
+      results.forEach(result => {
+        if (result) {
+          details[result.key] = result.value;
+        }
+      });
 
       setFavoriteDetails(details);
     } catch (error) {
       console.error('Error fetching favorite details:', error);
+    } finally {
+      setDetailsLoading(false);
     }
   };
 
@@ -87,6 +107,13 @@ const Favorites = () => {
     } catch (error) {
       toast.error('Failed to remove from favorites');
     }
+  };
+
+  const toggleAISummary = (favoriteId) => {
+    setExpandedAISummaries(prev => ({
+      ...prev,
+      [favoriteId]: !prev[favoriteId]
+    }));
   };
 
   const filteredFavorites = filter === 'all' 
@@ -125,75 +152,127 @@ const Favorites = () => {
         </button>
       </div>
 
-      {loading ? (
-        <p>Loading...</p>
+      {loading || detailsLoading ? (
+        <p>Loading favorites...</p>
       ) : (
         <div className="cards-grid">
           {filteredFavorites.map((favorite) => {
             const details = favoriteDetails[favorite.id];
-            return (
-              <div key={favorite.id} className="card">
-                {details?.type === 'clinical_trial' && details.data && (
-                  <>
-                    <h3>{details.data.title}</h3>
-                    <p className="card-meta">Condition: {details.data.condition}</p>
-                    <p className="card-meta">Status: {details.data.status}</p>
+            // Only render card if details are loaded
+            if (!details) {
+              return null;
+            }
+            
+            // Clinical Trial Card - matching dashboard design
+            if (details.type === 'clinical_trial' && details.data) {
+              return (
+                <div key={favorite.id} className="card modern-card trial-card">
+                  <div className="card-favorite-icon" onClick={() => handleRemoveFavorite('clinical_trial', favorite.item_id)}>
+                    <span className="star-icon star-filled">★</span>
+                  </div>
+                  <h3 className="card-title">{details.data.title}</h3>
+                  <p className="card-scope">{details.data.location || 'Global'}</p>
+                  <span className={`status-tag status-${details.data.status?.toLowerCase().replace(/\s+/g, '-')}`}>
+                    {details.data.status}
+                  </span>
+                  <p className="card-description">
+                    {details.data.description || `A trial on ${details.data.condition || 'medical research'}.`}
+                  </p>
+                  <div className="card-actions-row">
+                    <span className="action-link" onClick={() => handleRemoveFavorite('clinical_trial', favorite.item_id)}>
+                      Remove from Favorites
+                    </span>
                     {details.data.ai_summary && (
-                      <div className="ai-summary">
-                        <strong>AI Summary:</strong> {details.data.ai_summary}
+                      <span className="action-link" onClick={() => toggleAISummary(favorite.id)}>
+                        {expandedAISummaries[favorite.id] ? 'Hide AI Summary' : 'Get AI Summary'}
+                      </span>
+                    )}
+                  </div>
+                  {expandedAISummaries[favorite.id] && details.data.ai_summary && (
+                    <div className="ai-summary-container">
+                      <div className="ai-summary-content">
+                        {details.data.ai_summary}
                       </div>
-                    )}
-                  </>
-                )}
-                {details?.type === 'publication' && details.data && (
-                  <>
-                    <h3>{details.data.title}</h3>
-                    {details.data.authors && details.data.authors.length > 0 && (
-                      <p className="card-meta">Authors: {details.data.authors.slice(0, 3).join(', ')}</p>
-                    )}
-                    {details.data.journal && (
-                      <p className="card-meta">Journal: {details.data.journal}</p>
-                    )}
-                    {details.data.ai_summary && (
-                      <div className="ai-summary">
-                        <strong>AI Summary:</strong> {details.data.ai_summary}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            
+            // Collaborator Card - matching dashboard design
+            if (details.type === 'collaborator' && details.data) {
+              return (
+                <div key={favorite.id} className="card modern-card expert-card">
+                  <div className="card-favorite-icon" onClick={() => handleRemoveFavorite('collaborator', favorite.item_id)}>
+                    <span className="star-icon star-filled">★</span>
+                  </div>
+                  <h3 className="card-title" style={{ color: '#34A853', fontWeight: 700 }}>{details.data.name}</h3>
+                  <p className="card-affiliation">
+                    {details.data.specialties && details.data.specialties.length > 0 
+                      ? `${details.data.specialties[0]}${details.data.specialties.length > 1 ? `, ${details.data.specialties[1]}` : ''}`
+                      : 'Researcher'}
+                  </p>
+                  {details.data.research_interests && details.data.research_interests.length > 0 && (
+                    <>
+                      <p className="card-section-label">Research Interests:</p>
+                      <div className="interests-tags">
+                        {details.data.research_interests.slice(0, 3).map((interest, idx) => (
+                          <span key={idx} className="interest-tag">{interest}</span>
+                        ))}
                       </div>
-                    )}
-                  </>
-                )}
-                {details?.type === 'collaborator' && details.data && (
-                  <>
-                    <h3>{details.data.name}</h3>
-                    {details.data.specialties && details.data.specialties.length > 0 && (
-                      <p className="card-meta">Specialties: {details.data.specialties.join(', ')}</p>
-                    )}
-                    {details.data.research_interests && details.data.research_interests.length > 0 && (
-                      <p className="card-meta">Research Interests: {details.data.research_interests.join(', ')}</p>
-                    )}
-                  </>
-                )}
-                {!details && (
-                  <>
-                    <h3>{favorite.item_type.replace('_', ' ')} #{favorite.item_id}</h3>
-                    <p className="card-meta">Type: {favorite.item_type}</p>
-                  </>
-                )}
-                <p className="card-meta">
-                  Saved: {new Date(favorite.created_at).toLocaleDateString()}
-                </p>
-                <button
-                  onClick={() => handleRemoveFavorite(favorite.item_type, favorite.item_id)}
-                  className="danger-button"
-                >
-                  Remove
-                </button>
-              </div>
-            );
+                    </>
+                  )}
+                  <div className="card-actions-buttons">
+                    <button
+                      onClick={() => handleRemoveFavorite('collaborator', favorite.item_id)}
+                      className="danger-button"
+                      style={{ marginTop: '10px' }}
+                    >
+                      Remove from Favorites
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+            
+            // Publication Card - keeping existing style
+            if (details.type === 'publication' && details.data) {
+              return (
+                <div key={favorite.id} className="card modern-card publication-card">
+                  <div className="card-favorite-icon" onClick={() => handleRemoveFavorite('publication', favorite.item_id)}>
+                    <span className="star-icon star-filled">★</span>
+                  </div>
+                  <h3 className="card-title">{details.data.title}</h3>
+                  {details.data.authors && details.data.authors.length > 0 && (
+                    <p className="card-authors">
+                      By {details.data.authors.slice(0, 3).join(', ')}
+                    </p>
+                  )}
+                  {details.data.journal && (
+                    <p className="card-meta">Journal: {details.data.journal}</p>
+                  )}
+                  {details.data.ai_summary && (
+                    <div className="ai-summary">
+                      <strong>AI Summary:</strong> {details.data.ai_summary}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => handleRemoveFavorite('publication', favorite.item_id)}
+                    className="danger-button"
+                    style={{ marginTop: '10px' }}
+                  >
+                    Remove from Favorites
+                  </button>
+                </div>
+              );
+            }
+            
+            return null;
           })}
         </div>
       )}
 
-      {filteredFavorites.length === 0 && !loading && (
+      {filteredFavorites.length === 0 && !loading && !detailsLoading && (
         <p className="empty-state">
           No favorites found. Start saving items to see them here.
         </p>

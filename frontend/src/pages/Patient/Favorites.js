@@ -9,7 +9,9 @@ const Favorites = () => {
   const [favorites, setFavorites] = useState([]);
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [favoriteDetails, setFavoriteDetails] = useState([]);
+  const [expandedAISummaries, setExpandedAISummaries] = useState({});
   const [showAISummary, setShowAISummary] = useState(null);
   const [showMeetingForm, setShowMeetingForm] = useState(null);
   const [meetingForm, setMeetingForm] = useState({
@@ -26,13 +28,17 @@ const Favorites = () => {
     if (favorites.length > 0 && !loading) {
       fetchFavoriteDetails();
     } else if (favorites.length === 0) {
+      // Clear details immediately when favorites are empty
       setFavoriteDetails([]);
+      setDetailsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [favorites]);
 
   const fetchFavorites = async () => {
     setLoading(true);
+    // Clear old details immediately to prevent showing stale data
+    setFavoriteDetails([]);
     try {
       const token = localStorage.getItem('token');
       const headers = {
@@ -49,7 +55,9 @@ const Favorites = () => {
   };
 
   const fetchFavoriteDetails = async () => {
-    setLoading(true);
+    setDetailsLoading(true);
+    // Clear old details before fetching new ones
+    setFavoriteDetails([]);
     try {
       const token = localStorage.getItem('token');
       const headers = {
@@ -82,7 +90,7 @@ const Favorites = () => {
     } catch (error) {
       console.error('Error fetching favorite details:', error);
     } finally {
-      setLoading(false);
+      setDetailsLoading(false);
     }
   };
 
@@ -111,6 +119,13 @@ const Favorites = () => {
       `Hello,\n\nI am interested in learning more about this clinical trial:\n\n${trial.title}\n\nThank you.`
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const toggleAISummary = (itemId) => {
+    setExpandedAISummaries(prev => ({
+      ...prev,
+      [itemId]: !prev[itemId]
+    }));
   };
 
   const handleShowAISummary = (item) => {
@@ -196,8 +211,8 @@ const Favorites = () => {
         </button>
       </div>
 
-      {loading ? (
-        <p>Loading...</p>
+      {loading || detailsLoading ? (
+        <p>Loading favorites...</p>
       ) : (
         <div className="cards-grid recommended-grid">
           {filteredDetails.map((item) => {
@@ -219,10 +234,17 @@ const Favorites = () => {
                     <span className="action-link" onClick={() => handleContactTrial(item)}>
                       Contact Trial
                     </span>
-                    <span className="action-link" onClick={() => handleShowAISummary(item)}>
-                      Get AI Summary
+                    <span className="action-link" onClick={() => toggleAISummary(item.id)}>
+                      {expandedAISummaries[item.id] ? 'Hide AI Summary' : 'Get AI Summary'}
                     </span>
                   </div>
+                  {expandedAISummaries[item.id] && item.ai_summary && (
+                    <div className="ai-summary-container">
+                      <div className="ai-summary-content">
+                        {item.ai_summary}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             } else if (item.itemType === 'publication') {
@@ -361,7 +383,7 @@ const Favorites = () => {
         </div>
       )}
 
-      {filteredDetails.length === 0 && !loading && (
+      {filteredDetails.length === 0 && !loading && !detailsLoading && (
         <p className="empty-state">
           No favorites found. Start saving items to see them here.
         </p>

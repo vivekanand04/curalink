@@ -133,5 +133,129 @@ router.put('/connections/:id', authenticate, authorize('researcher'), async (req
   }
 });
 
+// Send message to connected collaborator
+router.post('/messages', authenticate, authorize('researcher'), async (req, res) => {
+  try {
+    const { receiverId, message } = req.body;
+    const senderId = req.user.userId;
+
+    if (!receiverId || !message) {
+      return res.status(400).json({ message: 'Receiver ID and message are required' });
+    }
+
+    // Verify connection exists and is accepted
+    const connectionCheck = await query(
+      `SELECT id FROM collaborator_connections 
+       WHERE status = 'accepted' 
+       AND ((requester_id = $1 AND receiver_id = $2) OR (requester_id = $2 AND receiver_id = $1))`,
+      [senderId, receiverId]
+    );
+
+    if (connectionCheck.rows.length === 0) {
+      return res.status(403).json({ message: 'Connection not found or not accepted' });
+    }
+
+    const connectionId = connectionCheck.rows[0].id;
+
+    const result = await query(
+      `INSERT INTO collaborator_messages (connection_id, sender_id, receiver_id, message)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [connectionId, senderId, receiverId, message]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get messages between two collaborators
+router.get('/messages/:collaboratorId', authenticate, authorize('researcher'), async (req, res) => {
+  try {
+    const { collaboratorId } = req.params;
+    const userId = req.user.userId;
+
+    // Verify connection
+    const connectionCheck = await query(
+      `SELECT id FROM collaborator_connections 
+       WHERE status = 'accepted' 
+       AND ((requester_id = $1 AND receiver_id = $2) OR (requester_id = $2 AND receiver_id = $1))`,
+      [userId, collaboratorId]
+    );
+
+    if (connectionCheck.rows.length === 0) {
+      return res.status(403).json({ message: 'Connection not found or not accepted' });
+    }
+
+    const connectionId = connectionCheck.rows[0].id;
+
+    // Get messages
+    const messagesResult = await query(
+      `SELECT cm.*, rp.name as sender_name
+       FROM collaborator_messages cm
+       JOIN researcher_profiles rp ON cm.sender_id = rp.user_id
+       WHERE cm.connection_id = $1
+       ORDER BY cm.created_at ASC`,
+      [connectionId]
+    );
+
+    // Mark messages as read for receiver
+    await query(
+      'UPDATE collaborator_messages SET is_read = true WHERE connection_id = $1 AND receiver_id = $2',
+      [connectionId, userId]
+    );
+
+    res.json(messagesResult.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get list of conversations
+router.get('/conversations', authenticate, authorize('researcher'), async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const result = await query(
+      `SELECT DISTINCT ON (
+         CASE WHEN cc.requester_id = $1 THEN cc.receiver_id ELSE cc.requester_id END
+       )
+         CASE WHEN cc.requester_id = $1 THEN cc.receiver_id ELSE cc.requester_id END as collaborator_id,
+         rp.name as collaborator_name,
+         rp.specialties,
+         rp.research_interests,
+         (SELECT message FROM collaborator_messages 
+          WHERE connection_id = cc.id 
+          ORDER BY created_at DESC LIMIT 1) as last_message,
+         (SELECT created_at FROM collaborator_messages 
+          WHERE connection_id = cc.id 
+          ORDER BY created_at DESC LIMIT 1) as last_message_time,
+         COALESCE((
+           SELECT COUNT(*)::INTEGER FROM collaborator_messages 
+           WHERE connection_id = cc.id AND receiver_id = $1 AND is_read = false
+         ), 0) as unread_count
+       FROM collaborator_connections cc
+       JOIN researcher_profiles rp ON (
+         (cc.requester_id = $1 AND cc.receiver_id = rp.user_id) OR
+         (cc.receiver_id = $1 AND cc.requester_id = rp.user_id)
+       )
+       WHERE cc.status = 'accepted' AND (cc.requester_id = $1 OR cc.receiver_id = $1)
+       ORDER BY CASE WHEN cc.requester_id = $1 THEN cc.receiver_id ELSE cc.requester_id END, 
+                (SELECT created_at FROM collaborator_messages 
+                 WHERE connection_id = cc.id 
+                 ORDER BY created_at DESC LIMIT 1) DESC NULLS LAST`,
+      [userId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;
 

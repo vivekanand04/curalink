@@ -23,15 +23,68 @@ const ResearcherDashboard = () => {
   const [profile, setProfile] = useState(null);
   const [clinicalTrials, setClinicalTrials] = useState([]);
   const [connections, setConnections] = useState([]);
+  const [potentialCollaborators, setPotentialCollaborators] = useState([]);
+  const [recentPosts, setRecentPosts] = useState([]);
+  const [expandedAISummaries, setExpandedAISummaries] = useState({});
+  const [favorites, setFavorites] = useState({});
+  const [connectionPending, setConnectionPending] = useState({});
+  const [showConnectionConfirm, setShowConnectionConfirm] = useState(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchProfile();
-    if (activeTab === 'dashboard') {
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'dashboard' && user?.id) {
       fetchDashboardData();
+      // Refresh connections periodically to check for accepted status
+      const interval = setInterval(() => {
+        fetchConnectionsOnly();
+      }, 10000); // Check every 10 seconds
+      return () => clearInterval(interval);
     }
-  }, [activeTab]);
+  }, [activeTab, user?.id]);
+
+  const fetchConnectionsOnly = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      const connectionsRes = await axios.get(`${API_URL}/collaborators/connections`, { headers });
+      setConnections(connectionsRes.data);
+      
+      // Update connection pending status - get user ID from auth endpoint if not available
+      let currentUserId = user?.id;
+      if (!currentUserId) {
+        try {
+          const authRes = await axios.get(`${API_URL}/auth/me`, { headers });
+          currentUserId = authRes.data?.id;
+        } catch (error) {
+          console.error('Error fetching user ID:', error);
+        }
+      }
+      
+      const pendingMap = {};
+      if (currentUserId) {
+        connectionsRes.data.forEach(conn => {
+          if (conn.status === 'pending') {
+            // Determine which side is the collaborator - ensure we compare numbers
+            const requesterId = parseInt(conn.requester_id);
+            const receiverId = parseInt(conn.receiver_id);
+            const userId = parseInt(currentUserId);
+            const collaboratorId = requesterId === userId ? receiverId : requesterId;
+            pendingMap[collaboratorId] = true;
+          }
+        });
+      }
+      setConnectionPending(pendingMap);
+    } catch (error) {
+      console.error('Error fetching connections:', error);
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -64,16 +117,129 @@ const ResearcherDashboard = () => {
         'Authorization': `Bearer ${token}`
       };
       
-      const [trialsRes, connectionsRes] = await Promise.all([
+      const [trialsRes, connectionsRes, collaboratorsRes, postsRes, favoritesRes] = await Promise.all([
         axios.get(`${API_URL}/clinical-trials/my-trials`, { headers }),
         axios.get(`${API_URL}/collaborators/connections`, { headers }),
+        axios.get(`${API_URL}/collaborators/search`, { headers, params: { limit: 6 } }),
+        axios.get(`${API_URL}/forums/recent-posts?limit=2`, { headers }),
+        axios.get(`${API_URL}/favorites`, { headers })
       ]);
 
       setClinicalTrials(trialsRes.data);
       setConnections(connectionsRes.data);
+      setPotentialCollaborators(collaboratorsRes.data);
+      setRecentPosts(postsRes.data);
+      
+      // Build favorites map
+      const favoritesMap = {};
+      favoritesRes.data.forEach(fav => {
+        const key = `${fav.item_type}_${fav.item_id}`;
+        favoritesMap[key] = true;
+      });
+      setFavorites(favoritesMap);
+
+      // Initialize connection pending status
+      const currentUserId = user?.id;
+      const pendingMap = {};
+      if (currentUserId) {
+        connectionsRes.data.forEach(conn => {
+          if (conn.status === 'pending') {
+            // Determine which side is the collaborator
+            const collaboratorId = conn.requester_id === currentUserId ? conn.receiver_id : conn.requester_id;
+            pendingMap[collaboratorId] = true;
+          }
+        });
+      }
+      setConnectionPending(pendingMap);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     }
+  };
+
+  const handleToggleFavorite = async (itemType, itemId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      const key = `${itemType}_${itemId}`;
+      
+      if (favorites[key]) {
+        await axios.delete(`${API_URL}/favorites/${itemType}/${itemId}`, { headers });
+        setFavorites(prev => {
+          const newFavs = { ...prev };
+          delete newFavs[key];
+          return newFavs;
+        });
+        toast.success('Removed from favorites');
+      } else {
+        await axios.post(`${API_URL}/favorites`, {
+          itemType,
+          itemId,
+        }, { headers });
+        setFavorites(prev => ({ ...prev, [key]: true }));
+        toast.success('Added to favorites');
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      toast.error('Failed to update favorite');
+    }
+  };
+
+  const toggleAISummary = (trialId) => {
+    setExpandedAISummaries(prev => ({
+      ...prev,
+      [trialId]: !prev[trialId]
+    }));
+  };
+
+  const handleConnect = async (collaboratorId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/collaborators/${collaboratorId}/connect`, {}, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setConnectionPending(prev => ({ ...prev, [collaboratorId]: true }));
+      setShowConnectionConfirm(null);
+      toast.success('Connection request sent');
+      // Refresh connections immediately to get the latest status
+      await fetchConnectionsOnly();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to send connection request');
+      setShowConnectionConfirm(null);
+    }
+  };
+
+  const handleConnectClick = (collaboratorId) => {
+    const status = getConnectionStatus(collaboratorId);
+    if (status === null && !connectionPending[collaboratorId]) {
+      setShowConnectionConfirm(collaboratorId);
+    }
+  };
+
+  const getConnectionStatus = (collaboratorId) => {
+    const currentUserId = user?.id;
+    if (!currentUserId) return null;
+    
+    // Ensure we compare numbers for accurate matching
+    const userId = parseInt(currentUserId);
+    const collabId = parseInt(collaboratorId);
+    
+    const connection = connections.find(
+      (conn) => {
+        const requesterId = parseInt(conn.requester_id);
+        const receiverId = parseInt(conn.receiver_id);
+        
+        // Check if this connection is between current user and the collaborator
+        const isCurrentUserRequester = requesterId === userId && receiverId === collabId;
+        const isCurrentUserReceiver = receiverId === userId && requesterId === collabId;
+        
+        return (isCurrentUserRequester || isCurrentUserReceiver) && conn.status !== 'rejected';
+      }
+    );
+    return connection?.status || null;
   };
 
   const handleLogout = () => {
@@ -229,22 +395,139 @@ const ResearcherDashboard = () => {
         <div className={`dashboard-content ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         {activeTab === 'dashboard' && (
           <div className="dashboard-main">
-            <h1>Welcome back, {profile?.name || 'Researcher'}!</h1>
-            <p className="subtitle">Your research dashboard</p>
+            {/* Banner Section */}
+            <div className="dashboard-banner-wrapper">
+              <div className="dashboard-banner">
+                <div className="banner-welcome-badge">
+                  <span className="banner-welcome-dot"></span>
+                  Welcome back, {profile?.name?.split(' ')[0] || 'Researcher'}!
+                </div>
+                <h1 className="banner-heading">Your Research Hub</h1>
+                <h2 className="banner-accent">Awaits</h2>
+                <p className="banner-description">
+                  Connect with leading researchers, discover clinical trials, and access simplified medical publications—all in one platform.
+                </p>
+              </div>
+            </div>
+
+            {/* Statistics Cards */}
+            <div className="stats-grid">
+              <div className="stat-card stat-card-purple">
+                <div className="stat-number">{potentialCollaborators.length}</div>
+                <div className="stat-label">Potential Collaborators</div>
+              </div>
+              <div className="stat-card stat-card-green">
+                <div className="stat-number">{clinicalTrials.length}</div>
+                <div className="stat-label">Clinical Trials</div>
+              </div>
+              <div className="stat-card stat-card-blue">
+                <div className="stat-number">{recentPosts.length}</div>
+                <div className="stat-label">Recent Discussions</div>
+              </div>
+              <div className="stat-card stat-card-red">
+                <div className="stat-number">{Object.keys(favorites).length}</div>
+                <div className="stat-label">Favorites</div>
+              </div>
+            </div>
+
+            {/* How It Works Section */}
+            <div className="how-it-works-section">
+              <h2 className="section-title">How It Works</h2>
+              <p className="section-subtitle">Get started in minutes and join a community advancing health research.</p>
+              <div className="how-it-works-content">
+                <div className="how-it-works-card">
+                  <div className="how-it-works-icon purple-bg">
+                    <span className="icon-emoji">❤️</span>
+                  </div>
+                  <div className="how-it-works-header">
+                    <h3>For Patients & Caregivers</h3>
+                  </div>
+                  <div className="how-it-works-steps">
+                    <div className="step">
+                      <div className="step-number purple-bg">1</div>
+                      <div className="step-content">
+                        <div className="step-title">Create your profile</div>
+                        <div className="step-description">Share your health interests and conditions</div>
+                      </div>
+                    </div>
+                    <div className="step">
+                      <div className="step-number purple-bg">2</div>
+                      <div className="step-content">
+                        <div className="step-title">Get personalized content</div>
+                        <div className="step-description">Receive relevant trials, publications, and expert recommendations</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="how-it-works-card">
+                  <div className="how-it-works-icon teal-bg">
+                    <span className="icon-emoji">🔬</span>
+                  </div>
+                  <div className="how-it-works-header">
+                    <h3>For Researchers</h3>
+                  </div>
+                  <div className="how-it-works-steps">
+                    <div className="step">
+                      <div className="step-number teal-bg">1</div>
+                      <div className="step-content">
+                        <div className="step-title">Set up your profile</div>
+                        <div className="step-description">Add specialties, research interests, and credentials</div>
+                      </div>
+                    </div>
+                    <div className="step">
+                      <div className="step-number teal-bg">2</div>
+                      <div className="step-content">
+                        <div className="step-title">Find collaborators</div>
+                        <div className="step-description">Connect with fellow researchers and potential study participants</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <div className="dashboard-sections">
+              {/* Clinical Trials Section */}
               <section className="dashboard-section">
-                <h2>My Clinical Trials</h2>
+                <div className="recommended-section-header" style={{ marginBottom: '20px' }}>
+                  <h2 className="recommended-section-title">Clinical Trials</h2>
+                  <span 
+                    className="see-more-text"
+                    onClick={() => setActiveTab('trials')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    See more →
+                  </span>
+                </div>
                 <div className="cards-grid">
-                  {clinicalTrials.slice(0, 3).map((trial) => (
-                    <div key={trial.id} className="card">
-                      <h3>{trial.title}</h3>
-                      <p className="card-meta">Condition: {trial.condition}</p>
-                      <p className="card-meta">Phase: {trial.phase} | Status: {trial.status}</p>
-                      <p className="card-description">{trial.description?.substring(0, 150)}...</p>
-                      {trial.ai_summary && (
-                        <div className="ai-summary">
-                          <strong>AI Summary:</strong> {trial.ai_summary}
+                  {clinicalTrials.slice(0, 2).map((trial) => (
+                    <div key={trial.id} className="card modern-card trial-card">
+                      <div className="card-favorite-icon" onClick={() => handleToggleFavorite('clinical_trial', trial.id)}>
+                        <span className={`star-icon ${favorites[`clinical_trial_${trial.id}`] ? 'star-filled' : ''}`}>
+                          {favorites[`clinical_trial_${trial.id}`] ? '★' : '☆'}
+                        </span>
+                      </div>
+                      <h3 className="card-title">{trial.title}</h3>
+                      <p className="card-scope">{trial.location || 'Global'}</p>
+                      <span className={`status-tag status-${trial.status?.toLowerCase().replace(/\s+/g, '-')}`}>
+                        {trial.status}
+                      </span>
+                      <p className="card-description">
+                        {trial.description || `A trial on ${trial.condition || 'medical research'}.`}
+                      </p>
+                      <div className="card-actions-row">
+                        <span className="action-link" onClick={() => setActiveTab('trials')}>
+                          View Details
+                        </span>
+                        <span className="action-link" onClick={() => toggleAISummary(trial.id)}>
+                          {expandedAISummaries[trial.id] ? 'Hide AI Summary' : 'Get AI Summary'}
+                        </span>
+                      </div>
+                      {expandedAISummaries[trial.id] && trial.ai_summary && (
+                        <div className="ai-summary-container">
+                          <div className="ai-summary-content">
+                            {trial.ai_summary}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -255,58 +538,128 @@ const ResearcherDashboard = () => {
                 )}
               </section>
 
+              {/* Potential Collaborators Section */}
               <section className="dashboard-section">
-                <h2>Recent Connections</h2>
-                <div className="cards-grid">
-                  {connections.slice(0, 3).map((conn) => (
-                    <div key={conn.id} className="card">
-                      <h3>{conn.name}</h3>
-                      <p className="card-meta">
-                        Specialties: {conn.specialties?.join(', ')}
-                      </p>
-                      <p className="card-meta">
-                        Status: <span style={{ 
-                          color: conn.status === 'accepted' ? 'green' : 
-                                 conn.status === 'pending' ? 'orange' : 'red' 
-                        }}>
-                          {conn.status}
-                        </span>
-                      </p>
-                    </div>
-                  ))}
+                <div className="recommended-section-header" style={{ marginBottom: '20px' }}>
+                  <h2 className="recommended-section-title">Potential Collaborators</h2>
+                  <span 
+                    className="see-more-text"
+                    onClick={() => setActiveTab('collaborators')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    See more →
+                  </span>
                 </div>
-                {connections.length === 0 && (
-                  <p className="empty-state">No connections yet. Start connecting with other researchers!</p>
+                <div className="cards-grid">
+                  {potentialCollaborators.slice(0, 2).map((collaborator) => {
+                    const connectionStatus = getConnectionStatus(collaborator.user_id);
+                    const isPending = connectionStatus === 'pending' || connectionPending[collaborator.user_id];
+                    return (
+                      <div key={collaborator.user_id} className="card modern-card expert-card">
+                        <div className="card-favorite-icon" onClick={() => handleToggleFavorite('collaborator', collaborator.user_id)}>
+                          <span className={`star-icon ${favorites[`collaborator_${collaborator.user_id}`] ? 'star-filled' : ''}`}>
+                            {favorites[`collaborator_${collaborator.user_id}`] ? '★' : '☆'}
+                          </span>
+                        </div>
+                        <h3 className="card-title" style={{ color: '#34A853', fontWeight: 700 }}>{collaborator.name}</h3>
+                        <p className="card-affiliation">
+                          {collaborator.specialties && collaborator.specialties.length > 0 
+                            ? `${collaborator.specialties[0]}${collaborator.specialties.length > 1 ? `, ${collaborator.specialties[1]}` : ''}`
+                            : 'Researcher'}
+                        </p>
+                        {collaborator.research_interests && collaborator.research_interests.length > 0 && (
+                          <>
+                            <p className="card-section-label">Research Interests:</p>
+                            <div className="interests-tags">
+                              {collaborator.research_interests.slice(0, 3).map((interest, idx) => (
+                                <span key={idx} className="interest-tag">{interest}</span>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                        <div className="card-actions-buttons">
+                          {connectionStatus === 'accepted' ? (
+                            <button
+                              className="request-meeting-button"
+                              style={{ background: '#155724', cursor: 'default' }}
+                              disabled
+                            >
+                              Confirmed
+                            </button>
+                          ) : isPending || connectionStatus === 'pending' ? (
+                            <button
+                              className="request-meeting-button"
+                              style={{ background: '#856404', cursor: 'default' }}
+                              disabled
+                            >
+                              Connection Pending
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleConnectClick(collaborator.user_id)}
+                              className="request-meeting-button"
+                              style={{ background: '#34A853' }}
+                            >
+                              Send Connection Request
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {potentialCollaborators.length === 0 && (
+                  <p className="empty-state">No potential collaborators found.</p>
                 )}
               </section>
 
+              {/* Forum Section */}
               <section className="dashboard-section">
-                <h2>My Publications</h2>
-                {(() => {
-                  const profilePubs = profile?.publications ? (Array.isArray(profile.publications) ? profile.publications : JSON.parse(profile.publications || '[]')) : [];
-                  return profilePubs.length > 0 ? (
-                    <div className="cards-grid">
-                      {profilePubs.slice(0, 3).map((pub, index) => (
-                        <div key={index} className="card">
-                          <h3>{pub.title || 'Publication'}</h3>
-                          {pub.journal && <p className="card-meta">Journal: {pub.journal}</p>}
-                          {pub.ai_summary && (
-                            <div className="ai-summary">
-                              <strong>AI Summary:</strong> {pub.ai_summary}
-                            </div>
-                          )}
-                          {pub.url && (
-                            <a href={pub.url} target="_blank" rel="noopener noreferrer" className="link-button">
-                              View Publication
-                            </a>
-                          )}
-                        </div>
-                      ))}
+                <div className="recent-discussions-section">
+                  <div className="section-header">
+                    <div className="section-icon purple-bg">
+                      <span className="icon-emoji">💬</span>
                     </div>
-                  ) : (
-                    <p className="empty-state">No publications yet. Add publications manually or link your ORCID/ResearchGate to auto-import.</p>
-                  );
-                })()}
+                    <h2 className="section-title">Recent Discussions</h2>
+                    <button className="view-all-link" onClick={() => setActiveTab('forums')}>
+                      View All →
+                    </button>
+                  </div>
+                  <div className="discussions-list-reddit">
+                    {recentPosts.length > 0 ? (
+                      recentPosts.slice(0, 2).map((post) => (
+                        <div key={post.id} className="post-card-reddit">
+                          <div className="post-voting-section">
+                            <div className="vote-arrow-up">▲</div>
+                            <div className="vote-count">{post.reply_count || 0}</div>
+                            <div className="vote-arrow-down">▼</div>
+                          </div>
+                          <div className="post-content-section">
+                            <div className="post-header-reddit">
+                              <span className="post-category-badge-reddit">{post.category_name}</span>
+                              <span className="post-author-reddit">by {post.author_name || 'User'}</span>
+                              <span className="post-time-reddit">{new Date(post.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <h3 className="post-title-reddit">{post.title}</h3>
+                            <p className="post-body-reddit">{post.content}</p>
+                            <div className="post-footer-reddit">
+                              <span className="post-comment-link">{post.reply_count || 0} comments</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="empty-state">No recent discussions available</p>
+                    )}
+                    {recentPosts.length > 0 && (
+                      <div className="view-all-discussions">
+                        <span className="view-all-text" onClick={() => setActiveTab('forums')}>
+                          View all
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </section>
             </div>
           </div>
@@ -333,6 +686,36 @@ const ResearcherDashboard = () => {
         onClose={() => setAccountTypeModalOpen(false)}
         currentUserType="researcher"
       />
+
+      {/* Connection Confirmation Modal */}
+      {showConnectionConfirm && (
+        <div className="modal-overlay" onClick={() => setShowConnectionConfirm(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Send Connection Request</h2>
+              <button className="modal-close" onClick={() => setShowConnectionConfirm(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to send a connection request to this researcher?</p>
+              <div className="form-actions" style={{ marginTop: '20px' }}>
+                <button
+                  onClick={() => setShowConnectionConfirm(null)}
+                  className="secondary-button"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleConnect(showConnectionConfirm)}
+                  className="primary-button"
+                  style={{ background: '#34A853' }}
+                >
+                  Send Request
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

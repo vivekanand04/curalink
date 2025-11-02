@@ -75,24 +75,31 @@ router.get('/personalized', authenticate, authorize('patient'), async (req, res)
 // Create clinical trial (for researchers)
 router.post('/', authenticate, authorize('researcher'), async (req, res) => {
   try {
-    const { title, description, condition, phase, status, location, eligibilityCriteria } = req.body;
+    const { title, description, condition, phase, status, location, eligibilityCriteria, currentParticipants, targetParticipants } = req.body;
     const researcherId = req.user.userId;
 
-    // Generate AI summary
-    const aiSummary = await generateAISummary(`${title}\n${description}`);
+    // Generate AI summary (handle errors gracefully)
+    let aiSummary = null;
+    try {
+      aiSummary = await generateAISummary(`${title}\n${description}`);
+    } catch (aiError) {
+      console.error('Error generating AI summary:', aiError);
+      // Continue without AI summary - it's not critical
+      aiSummary = null;
+    }
 
     const result = await query(
       `INSERT INTO clinical_trials 
-       (researcher_id, title, description, condition, phase, status, location, eligibility_criteria, ai_summary)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+       (researcher_id, title, description, condition, phase, status, location, eligibility_criteria, current_participants, target_participants, ai_summary)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
        RETURNING *`,
-      [researcherId, title, description, condition, phase, status, location, eligibilityCriteria, aiSummary]
+      [researcherId, title, description, condition, phase, status, location, eligibilityCriteria, currentParticipants || 0, targetParticipants || null, aiSummary]
     );
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error creating clinical trial:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
   }
 });
 
@@ -100,7 +107,7 @@ router.post('/', authenticate, authorize('researcher'), async (req, res) => {
 router.put('/:id', authenticate, authorize('researcher'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, condition, phase, status, location, eligibilityCriteria } = req.body;
+    const { title, description, condition, phase, status, location, eligibilityCriteria, currentParticipants, targetParticipants } = req.body;
 
     // Check ownership
     const checkResult = await query('SELECT researcher_id FROM clinical_trials WHERE id = $1', [id]);
@@ -112,22 +119,32 @@ router.put('/:id', authenticate, authorize('researcher'), async (req, res) => {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    // Generate updated AI summary
-    const aiSummary = await generateAISummary(`${title}\n${description}`);
+    // Generate updated AI summary (handle errors gracefully)
+    let aiSummary = null;
+    try {
+      aiSummary = await generateAISummary(`${title}\n${description}`);
+    } catch (aiError) {
+      console.error('Error generating AI summary:', aiError);
+      // Continue without AI summary - it's not critical
+      // Try to keep existing AI summary if update fails
+      const existingTrial = await query('SELECT ai_summary FROM clinical_trials WHERE id = $1', [id]);
+      aiSummary = existingTrial.rows[0]?.ai_summary || null;
+    }
 
     const result = await query(
       `UPDATE clinical_trials 
        SET title = $1, description = $2, condition = $3, phase = $4, status = $5, 
-           location = $6, eligibility_criteria = $7, ai_summary = $8, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $9 
+           location = $6, eligibility_criteria = $7, current_participants = $8, target_participants = $9, 
+           ai_summary = $10, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $11 
        RETURNING *`,
-      [title, description, condition, phase, status, location, eligibilityCriteria, aiSummary, id]
+      [title, description, condition, phase, status, location, eligibilityCriteria, currentParticipants || 0, targetParticipants || null, aiSummary, id]
     );
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error updating clinical trial:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
   }
 });
 

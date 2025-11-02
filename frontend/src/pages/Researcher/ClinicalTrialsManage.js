@@ -17,12 +17,37 @@ const ClinicalTrialsManage = () => {
     status: 'recruiting',
     location: '',
     eligibilityCriteria: '',
+    currentParticipants: 0,
+    targetParticipants: '',
   });
   const [loading, setLoading] = useState(false);
+  const [favorites, setFavorites] = useState({});
+  const [expandedAISummaries, setExpandedAISummaries] = useState({});
 
   useEffect(() => {
     fetchTrials();
+    fetchFavorites();
   }, []);
+
+  const fetchFavorites = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/favorites`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const favoritesMap = {};
+      response.data.forEach(fav => {
+        if (fav.item_type === 'clinical_trial') {
+          favoritesMap[`clinical_trial_${fav.item_id}`] = true;
+        }
+      });
+      setFavorites(favoritesMap);
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+    }
+  };
 
   const fetchTrials = async () => {
     setLoading(true);
@@ -60,18 +85,9 @@ const ClinicalTrialsManage = () => {
         await axios.post(`${API_URL}/clinical-trials`, formData, { headers });
         toast.success('Clinical trial created successfully');
       }
-      setShowForm(false);
-      setEditingTrial(null);
-      setFormData({
-        title: '',
-        description: '',
-        condition: '',
-        phase: '',
-        status: 'recruiting',
-        location: '',
-        eligibilityCriteria: '',
-      });
+      handleCancelForm();
       fetchTrials();
+      fetchFavorites();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to save clinical trial');
     }
@@ -87,25 +103,72 @@ const ClinicalTrialsManage = () => {
       status: trial.status,
       location: trial.location,
       eligibilityCriteria: trial.eligibility_criteria || '',
+      currentParticipants: trial.current_participants || 0,
+      targetParticipants: trial.target_participants || '',
     });
     setShowForm(true);
   };
 
-  const handleAddFavorite = async (trialId) => {
+  const handleToggleFavorite = async (trialId) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/favorites`, {
-        itemType: 'clinical_trial',
-        itemId: trialId,
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      toast.success('Added to favorites');
+      const isFavorite = favorites[`clinical_trial_${trialId}`];
+      
+      if (isFavorite) {
+        // Remove from favorites
+        await axios.delete(`${API_URL}/favorites/clinical_trial/${trialId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        setFavorites(prev => {
+          const newFavs = { ...prev };
+          delete newFavs[`clinical_trial_${trialId}`];
+          return newFavs;
+        });
+        toast.success('Removed from favorites');
+      } else {
+        // Add to favorites
+        await axios.post(`${API_URL}/favorites`, {
+          itemType: 'clinical_trial',
+          itemId: trialId,
+        }, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        setFavorites(prev => ({
+          ...prev,
+          [`clinical_trial_${trialId}`]: true
+        }));
+        toast.success('Added to favorites');
+      }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to add to favorites');
+      toast.error(error.response?.data?.message || 'Failed to update favorites');
     }
+  };
+
+  const toggleAISummary = (trialId) => {
+    setExpandedAISummaries(prev => ({
+      ...prev,
+      [trialId]: !prev[trialId]
+    }));
+  };
+
+  const handleCancelForm = () => {
+    setShowForm(false);
+    setEditingTrial(null);
+    setFormData({
+      title: '',
+      description: '',
+      condition: '',
+      phase: '',
+      status: 'recruiting',
+      location: '',
+      eligibilityCriteria: '',
+      currentParticipants: 0,
+      targetParticipants: '',
+    });
   };
 
   const handleDelete = async (trialId) => {
@@ -139,95 +202,146 @@ const ClinicalTrialsManage = () => {
 
       {showForm && (
         <div className="modal-overlay" onClick={() => {
-          setShowForm(false);
-          setEditingTrial(null);
+          handleCancelForm();
         }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{editingTrial ? 'Edit Clinical Trial' : 'Add New Clinical Trial'}</h2>
-            <div className="form-group">
-              <label>Title *</label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Enter trial title"
-              />
-            </div>
-            <div className="form-group">
-              <label>Description *</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Describe the clinical trial"
-                rows="4"
-              />
-            </div>
-            <div className="form-group">
-              <label>Condition *</label>
-              <input
-                type="text"
-                value={formData.condition}
-                onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
-                placeholder="e.g., Brain Cancer"
-              />
-            </div>
-            <div className="form-group">
-              <label>Phase</label>
-              <select
-                value={formData.phase}
-                onChange={(e) => setFormData({ ...formData, phase: e.target.value })}
+          <div className="modal-content clinical-trial-form" onClick={(e) => e.stopPropagation()}>
+            <div className="form-header">
+              <h2>{editingTrial ? 'Edit Clinical Trial' : 'Create New Clinical Trial'}</h2>
+              <button 
+                className="close-button" 
+                onClick={handleCancelForm}
+                aria-label="Close"
               >
-                <option value="">Select phase</option>
-                <option value="Phase 1">Phase 1</option>
-                <option value="Phase 2">Phase 2</option>
-                <option value="Phase 3">Phase 3</option>
-                <option value="Phase 4">Phase 4</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              >
-                <option value="recruiting">Recruiting</option>
-                <option value="not yet recruiting">Not Yet Recruiting</option>
-                <option value="completed">Completed</option>
-                <option value="terminated">Terminated</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Location</label>
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                placeholder="Enter location"
-              />
-            </div>
-            <div className="form-group">
-              <label>Eligibility Criteria</label>
-              <textarea
-                value={formData.eligibilityCriteria}
-                onChange={(e) => setFormData({ ...formData, eligibilityCriteria: e.target.value })}
-                placeholder="Describe eligibility criteria"
-                rows="3"
-              />
-            </div>
-            <div className="form-actions">
-              <button
-                onClick={() => {
-                  setShowForm(false);
-                  setEditingTrial(null);
-                }}
-                className="secondary-button"
-              >
-                Cancel
-              </button>
-              <button onClick={handleSubmit} className="primary-button">
-                {editingTrial ? 'Update' : 'Create'} Trial
+                ×
               </button>
             </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+              <div className="form-grid">
+                <div className="form-group full-width">
+                  <label htmlFor="title">Title <span className="required">*</span></label>
+                  <input
+                    id="title"
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="Enter trial title"
+                    required
+                  />
+                </div>
+                
+                <div className="form-group full-width">
+                  <label htmlFor="description">Description <span className="required">*</span></label>
+                  <textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Describe the clinical trial, its objectives, and methodology"
+                    rows="5"
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="condition">Condition <span className="required">*</span></label>
+                  <input
+                    id="condition"
+                    type="text"
+                    value={formData.condition}
+                    onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+                    placeholder="e.g., Brain Cancer, Diabetes"
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="phase">Phase</label>
+                  <select
+                    id="phase"
+                    value={formData.phase}
+                    onChange={(e) => setFormData({ ...formData, phase: e.target.value })}
+                  >
+                    <option value="">Select phase</option>
+                    <option value="Phase 1">Phase 1</option>
+                    <option value="Phase 2">Phase 2</option>
+                    <option value="Phase 3">Phase 3</option>
+                    <option value="Phase 4">Phase 4</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="status">Status</label>
+                  <select
+                    id="status"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  >
+                    <option value="recruiting">Recruiting</option>
+                    <option value="not yet recruiting">Not Yet Recruiting</option>
+                    <option value="completed">Completed</option>
+                    <option value="terminated">Terminated</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="location">Location</label>
+                  <input
+                    id="location"
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    placeholder="e.g., New York, USA"
+                  />
+                </div>
+                
+                <div className="form-group full-width">
+                  <label htmlFor="eligibilityCriteria">Eligibility Criteria</label>
+                  <textarea
+                    id="eligibilityCriteria"
+                    value={formData.eligibilityCriteria}
+                    onChange={(e) => setFormData({ ...formData, eligibilityCriteria: e.target.value })}
+                    placeholder="Describe inclusion and exclusion criteria for participants"
+                    rows="4"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="currentParticipants">Current Participants</label>
+                  <input
+                    id="currentParticipants"
+                    type="number"
+                    value={formData.currentParticipants}
+                    onChange={(e) => setFormData({ ...formData, currentParticipants: parseInt(e.target.value) || 0 })}
+                    placeholder="0"
+                    min="0"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="targetParticipants">Target Participants</label>
+                  <input
+                    id="targetParticipants"
+                    type="number"
+                    value={formData.targetParticipants}
+                    onChange={(e) => setFormData({ ...formData, targetParticipants: e.target.value ? parseInt(e.target.value) : '' })}
+                    placeholder="Optional"
+                    min="1"
+                  />
+                </div>
+              </div>
+              
+              <div className="form-actions">
+                <button
+                  type="button"
+                  onClick={handleCancelForm}
+                  className="secondary-button"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="primary-button">
+                  {editingTrial ? 'Update Trial' : 'Create Trial'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -237,45 +351,58 @@ const ClinicalTrialsManage = () => {
       ) : (
         <div className="cards-grid">
           {trials.map((trial) => (
-            <div key={trial.id} className="card">
-              <h3>{trial.title}</h3>
-              <p className="card-meta">
-                <strong>Condition:</strong> {trial.condition}
-              </p>
-              <p className="card-meta">
-                <strong>Phase:</strong> {trial.phase} | <strong>Status:</strong> {trial.status}
-              </p>
-              {trial.location && (
-                <p className="card-meta">
-                  <strong>Location:</strong> {trial.location}
-                </p>
-              )}
-              <p className="card-description">{trial.description?.substring(0, 200)}...</p>
-              {trial.ai_summary && (
-                <div className="ai-summary">
-                  <strong>AI Summary:</strong> {trial.ai_summary}
+            <div key={trial.id} className="card modern-card trial-card">
+              <div className="card-favorite-icon" onClick={() => handleToggleFavorite(trial.id)}>
+                <span className={`star-icon ${favorites[`clinical_trial_${trial.id}`] ? 'star-filled' : ''}`}>
+                  {favorites[`clinical_trial_${trial.id}`] ? '★' : '☆'}
+                </span>
+              </div>
+              <h3 className="card-title">{trial.title}</h3>
+              <p className="card-scope">{trial.location || 'Global'}</p>
+              <span className={`status-tag status-${trial.status?.toLowerCase().replace(/\s+/g, '-')}`}>
+                {trial.status}
+              </span>
+              {(trial.current_participants !== undefined || trial.target_participants) && trial.target_participants && (
+                <div className="recruitment-progress">
+                  <div className="progress-header">
+                    <span className="progress-label">Progress</span>
+                    <span className="progress-count">
+                      {trial.current_participants || 0} / {trial.target_participants}
+                    </span>
+                  </div>
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill"
+                      style={{ 
+                        width: `${Math.min(((trial.current_participants || 0) / trial.target_participants) * 100, 100)}%` 
+                      }}
+                    ></div>
+                  </div>
                 </div>
               )}
-              <div className="card-actions">
-                <button
-                  onClick={() => handleEdit(trial)}
-                  className="secondary-button"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleAddFavorite(trial.id)}
-                  className="secondary-button"
-                >
-                  Add to Favorites
-                </button>
-                <button
-                  onClick={() => handleDelete(trial.id)}
-                  className="danger-button"
-                >
-                  Delete
-                </button>
+              <p className="card-description">
+                {trial.description || `A trial on ${trial.condition || 'medical research'}.`}
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
+                <div style={{ display: 'flex', gap: '15px' }}>
+                  <span className="action-link" onClick={() => handleEdit(trial)}>
+                    Edit
+                  </span>
+                  <span className="action-link" onClick={() => handleDelete(trial.id)} style={{ color: '#dc3545' }}>
+                    Delete
+                  </span>
+                </div>
+                <span className="action-link" onClick={() => toggleAISummary(trial.id)}>
+                  {expandedAISummaries[trial.id] ? 'Hide AI Summary' : 'Get AI Summary'}
+                </span>
               </div>
+              {expandedAISummaries[trial.id] && trial.ai_summary && (
+                <div className="ai-summary-container">
+                  <div className="ai-summary-content">
+                    {trial.ai_summary}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
