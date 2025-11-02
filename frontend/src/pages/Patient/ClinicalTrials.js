@@ -11,6 +11,7 @@ const ClinicalTrials = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
+  const [showAISummary, setShowAISummary] = useState(null);
 
   useEffect(() => {
     fetchTrials();
@@ -95,6 +96,14 @@ const ClinicalTrials = () => {
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
+  const handleShowAISummary = (trial) => {
+    if (trial.ai_summary) {
+      setShowAISummary(trial);
+    } else {
+      toast.info('AI summary not available for this trial');
+    }
+  };
+
   return (
     <div className="page-content">
       <h1>Clinical Trials</h1>
@@ -138,49 +147,43 @@ const ClinicalTrials = () => {
       ) : (
         <div className="cards-grid">
           {trials.map((trial) => (
-            <div key={trial.id} className="card">
-              <h3>{trial.title}</h3>
-              <p className="card-meta">
-                <strong>Condition:</strong> {trial.condition}
-              </p>
-              <p className="card-meta">
-                <strong>Phase:</strong> {trial.phase} | <strong>Status:</strong> {trial.status}
-              </p>
-              {trial.location && (
-                <p className="card-meta">
-                  <strong>Location:</strong> {trial.location}
-                </p>
-              )}
+            <div key={trial.id} className="card modern-card trial-card">
+              <div className="card-favorite-icon" onClick={() => handleAddFavorite(trial.id)}>
+                <span className="star-icon">☆</span>
+              </div>
+              <h3 className="card-title">{trial.title}</h3>
+              <p className="card-scope">{trial.location || 'Global'}</p>
+              <span className={`status-tag status-${trial.status?.toLowerCase().replace(/\s+/g, '-')}`}>
+                {trial.status}
+              </span>
               <p className="card-description">
-                {trial.description?.substring(0, 200)}...
+                {trial.description || `A trial on ${trial.condition || 'medical research'}.`}
               </p>
-              {trial.ai_summary && (
-                <div className="ai-summary">
-                  <strong>AI Summary:</strong> {trial.ai_summary}
-                </div>
-              )}
-              {trial.eligibility_criteria && (
-                <details className="eligibility">
-                  <summary>Eligibility Criteria</summary>
-                  <p>{trial.eligibility_criteria}</p>
-                </details>
-              )}
-              <div className="card-actions">
-                <button
-                  onClick={() => handleAddFavorite(trial.id)}
-                  className="secondary-button"
-                >
-                  Add to Favorites
-                </button>
-                <button
-                  onClick={() => handleContactTrial(trial)}
-                  className="primary-button"
-                >
+              <div className="card-actions-row">
+                <span className="action-link" onClick={() => handleContactTrial(trial)}>
                   Contact Trial
-                </button>
+                </span>
+                <span className="action-link" onClick={() => handleShowAISummary(trial)}>
+                  Get AI Summary
+                </span>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {showAISummary && (
+        <div className="modal-overlay" onClick={() => setShowAISummary(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>AI Summary</h2>
+              <button className="modal-close" onClick={() => setShowAISummary(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <h3>{showAISummary.title}</h3>
+              <p>{showAISummary.ai_summary || 'AI summary not available.'}</p>
+            </div>
+          </div>
         </div>
       )}
 

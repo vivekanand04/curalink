@@ -32,11 +32,14 @@ const PatientDashboard = () => {
     discussions: 0
   });
   const [recentPosts, setRecentPosts] = useState([]);
+  const [showAISummary, setShowAISummary] = useState(null);
+  const [favorites, setFavorites] = useState({}); // Track favorites: { 'clinical_trial_1': true, 'expert_2': true, etc. }
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchProfile();
+    fetchFavorites();
   }, []);
 
   useEffect(() => {
@@ -44,6 +47,102 @@ const PatientDashboard = () => {
       fetchDashboardData();
     }
   }, [activeTab, profile]);
+
+  const fetchFavorites = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      const response = await axios.get(`${API_URL}/favorites`, { headers });
+      const favoritesMap = {};
+      response.data.forEach(fav => {
+        const key = `${fav.item_type}_${fav.item_id}`;
+        favoritesMap[key] = true;
+      });
+      setFavorites(favoritesMap);
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+    }
+  };
+
+  const handleToggleFavorite = async (itemType, itemId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      const key = `${itemType}_${itemId}`;
+      
+      if (favorites[key]) {
+        // Remove from favorites
+        await axios.delete(`${API_URL}/favorites/${itemType}/${itemId}`, { headers });
+        setFavorites(prev => {
+          const newFavs = { ...prev };
+          delete newFavs[key];
+          return newFavs;
+        });
+        toast.success('Removed from favorites');
+      } else {
+        // Add to favorites
+        await axios.post(`${API_URL}/favorites`, {
+          itemType: itemType === 'expert' ? 'expert' : itemType,
+          itemId: itemId,
+        }, { headers });
+        setFavorites(prev => ({ ...prev, [key]: true }));
+        toast.success('Added to favorites');
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      toast.error('Failed to update favorite');
+    }
+  };
+
+  const handleFollowExpert = async (expertId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/experts/${expertId}/follow`, {}, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      toast.success('Expert followed successfully');
+    } catch (error) {
+      if (error.response?.status === 404 || error.response?.status === 409) {
+        toast.info('Expert bookmarked');
+      } else {
+        toast.error('Failed to follow expert');
+      }
+    }
+  };
+
+  const [showMeetingForm, setShowMeetingForm] = useState(null);
+  const [meetingForm, setMeetingForm] = useState({
+    patientName: '',
+    patientContact: '',
+    message: '',
+  });
+
+  const handleRequestMeeting = async (expertId) => {
+    if (!meetingForm.patientName || !meetingForm.patientContact) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/experts/${expertId}/meeting-request`, meetingForm, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      toast.success('Meeting request sent successfully');
+      setShowMeetingForm(null);
+      setMeetingForm({ patientName: '', patientContact: '', message: '' });
+    } catch (error) {
+      toast.error('Failed to send meeting request');
+    }
+  };
 
   const fetchDashboardData = async () => {
     await Promise.all([
@@ -451,6 +550,246 @@ const PatientDashboard = () => {
               </div>
             </div>
 
+            {/* Recommended Sections */}
+            <div className="recommended-sections">
+              {/* Recommended Clinical Trials */}
+              <div className="recommended-section">
+                <div className="recommended-section-header">
+                  <h2 className="recommended-section-title">
+                    Recommended Clinical Trials
+                  </h2>
+                  <span 
+                    className="see-more-text"
+                    onClick={() => navigate('/patient/recommended/trials')}
+                  >
+                    See More →
+                  </span>
+                </div>
+                {loadingData ? (
+                  <p className="loading-text">Loading trials...</p>
+                ) : clinicalTrials.length > 0 ? (
+                  <div className="recommended-scroll-container">
+                    <div className="recommended-scroll-content">
+                      {clinicalTrials.slice(0, 2).map((trial) => (
+                        <div key={trial.id} className="recommended-card modern-card trial-card">
+                          <div className="card-favorite-icon" onClick={() => handleToggleFavorite('clinical_trial', trial.id)}>
+                            <span className={`star-icon ${favorites[`clinical_trial_${trial.id}`] ? 'star-filled' : ''}`}>
+                              {favorites[`clinical_trial_${trial.id}`] ? '★' : '☆'}
+                            </span>
+                          </div>
+                          <h3 className="card-title">{trial.title}</h3>
+                          <p className="card-scope">{trial.location || 'Global'}</p>
+                          <span className={`status-tag status-${trial.status?.toLowerCase().replace(/\s+/g, '-')}`}>
+                            {trial.status}
+                          </span>
+                          <p className="card-description">
+                            {trial.description || `A trial on ${trial.condition || 'medical research'}.`}
+                          </p>
+                          <div className="card-actions-row">
+                            <span className="action-link" onClick={() => {
+                              const subject = encodeURIComponent(`Inquiry about: ${trial.title}`);
+                              const body = encodeURIComponent(
+                                `Hello,\n\nI am interested in learning more about this clinical trial:\n\n${trial.title}\n\nThank you.`
+                              );
+                              window.location.href = `mailto:?subject=${subject}&body=${body}`;
+                            }}>
+                              Contact Trial
+                            </span>
+                            <span className="action-link" onClick={() => {
+                              if (trial.ai_summary) {
+                                alert(`AI Summary:\n\n${trial.ai_summary}`);
+                              } else {
+                                alert('AI summary not available for this trial');
+                              }
+                            }}>
+                              Get AI Summary
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                </div>
+                ) : (
+                  <p className="empty-state">Complete your profile to get clinical trial recommendations.</p>
+                )}
+              </div>
+
+              {/* Recommended Publications */}
+              <div className="recommended-section">
+                <div className="recommended-section-header">
+                  <h2 className="recommended-section-title">
+                    Recommended Publications
+                  </h2>
+                  <span 
+                    className="see-more-text"
+                    onClick={() => navigate('/patient/recommended/publications')}
+                  >
+                    See More →
+                  </span>
+                </div>
+                {loadingData ? (
+                  <p className="loading-text">Loading publications...</p>
+                ) : publications.length > 0 ? (
+                  <div className="recommended-scroll-container">
+                    <div className="recommended-scroll-content">
+                      {publications.slice(0, 2).map((pub) => (
+                        <div key={pub.id} className="recommended-card modern-card publication-card">
+                          <div className="card-favorite-icon" onClick={() => handleToggleFavorite('publication', pub.id)}>
+                            <span className={`star-icon ${favorites[`publication_${pub.id}`] ? 'star-filled' : ''}`}>
+                              {favorites[`publication_${pub.id}`] ? '★' : '☆'}
+                            </span>
+                          </div>
+                          <h3 className="card-title">{pub.title}</h3>
+                          {pub.journal && pub.publication_date && (
+                            <p className="card-source">
+                              {pub.journal} • {new Date(pub.publication_date).getFullYear()}
+                            </p>
+                          )}
+                          {pub.authors && pub.authors.length > 0 && (
+                            <p className="card-authors">
+                              By {pub.authors.slice(0, 2).map(author => author.includes('Dr.') ? author : `Dr. ${author}`).join(', ')}
+                              {pub.authors.length > 2 && ' et al.'}
+                            </p>
+                          )}
+                          <div className="card-actions-row">
+                            <span className="action-link">
+                              {pub.full_text_url ? (
+                                <a
+                                  href={pub.full_text_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  View Full Paper
+                                </a>
+                              ) : (
+                                <span style={{ color: '#9ca3af', cursor: 'not-allowed' }}>View Full Paper</span>
+                              )}
+                            </span>
+                            <span className="action-link" onClick={() => {
+                              if (pub.ai_summary) {
+                                alert(`AI Summary:\n\n${pub.ai_summary}`);
+                              } else {
+                                alert('AI summary not available for this publication');
+                              }
+                            }}>
+                              Get AI Summary
+                            </span>
+                          </div>
+                        </div>
+                  ))}
+                </div>
+                  </div>
+                ) : (
+                  <p className="empty-state">Complete your profile to get publication recommendations.</p>
+                )}
+              </div>
+
+              {/* Recommended Health Experts */}
+              <div className="recommended-section">
+                <div className="recommended-section-header">
+                  <h2 className="recommended-section-title">
+                    Recommended Health Experts
+                  </h2>
+                  <span 
+                    className="see-more-text"
+                    onClick={() => navigate('/patient/recommended/experts')}
+                  >
+                    See More →
+                  </span>
+                </div>
+                {loadingData ? (
+                  <p className="loading-text">Loading experts...</p>
+                ) : experts && experts.length > 0 ? (
+                  <div className="recommended-scroll-container">
+                    <div className="recommended-scroll-content">
+                      {experts.slice(0, 2).map((expert) => (
+                        <div key={expert.id} className="recommended-card modern-card expert-card">
+                          <div className="card-favorite-icon" onClick={() => handleToggleFavorite('expert', expert.id)}>
+                            <span className={`star-icon ${favorites[`expert_${expert.id}`] ? 'star-filled' : ''}`}>
+                              {favorites[`expert_${expert.id}`] ? '★' : '☆'}
+                            </span>
+                          </div>
+                          <h3 className="card-title">{expert.name || 'Expert'}</h3>
+                          <p className="card-affiliation">
+                            {expert.specialties && expert.specialties.length > 0 
+                              ? `${expert.specialties[0]}${expert.location ? ` at ${expert.location}` : ''}`
+                              : expert.location || 'Health Expert'}
+                          </p>
+                            {expert.research_interests && expert.research_interests.length > 0 && (
+                            <>
+                              <p className="card-section-label">Research Interests:</p>
+                              <div className="interests-tags">
+                                {expert.research_interests.slice(0, 2).map((interest, idx) => (
+                                  <span key={idx} className="interest-tag">{interest}</span>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                          <div className="card-actions-buttons">
+                            <button
+                              onClick={() => handleFollowExpert(expert.id)}
+                              className="follow-button"
+                            >
+                              Follow
+                            </button>
+                            {expert.is_platform_member && (
+                              <button
+                                onClick={() => setShowMeetingForm(expert.id)}
+                                className="request-meeting-button"
+                              >
+                                Request Meeting
+                              </button>
+                            )}
+                          </div>
+                          {showMeetingForm === expert.id && (
+                            <div className="meeting-form">
+                              <h4>Request a Meeting</h4>
+                              <input
+                                type="text"
+                                placeholder="Your Name *"
+                                value={meetingForm.patientName}
+                                onChange={(e) => setMeetingForm({ ...meetingForm, patientName: e.target.value })}
+                              />
+                              <input
+                                type="text"
+                                placeholder="Your Contact *"
+                                value={meetingForm.patientContact}
+                                onChange={(e) => setMeetingForm({ ...meetingForm, patientContact: e.target.value })}
+                              />
+                              <textarea
+                                placeholder="Message (optional)"
+                                value={meetingForm.message}
+                                onChange={(e) => setMeetingForm({ ...meetingForm, message: e.target.value })}
+                              />
+                              <div className="form-actions">
+                                <button
+                                  onClick={() => handleRequestMeeting(expert.id)}
+                                  className="primary-button"
+                                >
+                                  Send Request
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setShowMeetingForm(null);
+                                    setMeetingForm({ patientName: '', patientContact: '', message: '' });
+                                  }}
+                                  className="secondary-button"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="empty-state">Complete your profile to get expert recommendations.</p>
+                )}
+              </div>
+            </div>
+
             {/* Everything You Need Section */}
             <div className="everything-section">
               <h2 className="section-title">Everything You Need</h2>
@@ -523,7 +862,7 @@ const PatientDashboard = () => {
                     }}>
                       <div className="discussion-tags">
                         <span className="discussion-tag">{post.category_name}</span>
-                      </div>
+                          </div>
                       <div className="discussion-meta">
                         <span>by {post.author_name || 'User'}</span>
                         <span>·</span>
@@ -533,105 +872,10 @@ const PatientDashboard = () => {
                       <p className="discussion-preview">{post.content?.substring(0, 200)}...</p>
                     </div>
                   ))
-                ) : (
+                    ) : (
                   <p className="empty-state">No recent discussions available</p>
                 )}
               </div>
-            </div>
-
-            <div className="dashboard-sections">
-              <section className="dashboard-section">
-                <h2>
-                  {profile?.conditions && profile.conditions.length > 0 
-                    ? `Recommended Clinical Trials for ${profile.conditions.join(', ')}`
-                    : 'Recommended Clinical Trials'}
-                </h2>
-                <div className="cards-grid">
-                  {clinicalTrials.slice(0, 3).map((trial) => (
-                    <div key={trial.id} className="card">
-                      <h3>{trial.title}</h3>
-                      <p className="card-meta">Condition: {trial.condition}</p>
-                      <p className="card-meta">Status: {trial.status}</p>
-                      <p className="card-description">{trial.description?.substring(0, 150)}...</p>
-                      {trial.ai_summary && (
-                        <div className="ai-summary">
-                          <strong>AI Summary:</strong> {trial.ai_summary}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {clinicalTrials.length === 0 && (
-                  <p className="empty-state">No clinical trials found. Complete your profile to get recommendations.</p>
-                )}
-              </section>
-
-              <section className="dashboard-section">
-                <h2>
-                  {profile?.conditions && profile.conditions.length > 0 
-                    ? `Recommended Publications for ${profile.conditions.join(', ')}`
-                    : 'Recommended Publications'}
-                </h2>
-                <div className="cards-grid">
-                  {publications.slice(0, 3).map((pub) => (
-                    <div key={pub.id} className="card">
-                      <h3>{pub.title}</h3>
-                      <p className="card-meta">Journal: {pub.journal}</p>
-                      <p className="card-description">{pub.abstract?.substring(0, 150)}...</p>
-                      {pub.ai_summary && (
-                        <div className="ai-summary">
-                          <strong>AI Summary:</strong> {pub.ai_summary}
-                        </div>
-                      )}
-                      {pub.full_text_url && (
-                        <a href={pub.full_text_url} target="_blank" rel="noopener noreferrer" className="link-button">
-                          Read Full Paper
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {publications.length === 0 && (
-                  <p className="empty-state">No publications found.</p>
-                )}
-              </section>
-
-              <section className="dashboard-section">
-                <h2>
-                  {profile?.conditions && profile.conditions.length > 0 
-                    ? `Recommended Health Experts for ${profile.conditions.join(', ')}`
-                    : 'Recommended Health Experts'}
-                </h2>
-                {loadingData ? (
-                  <p>Loading experts...</p>
-                ) : (
-                  <>
-                    {experts && experts.length > 0 ? (
-                      <div className="cards-grid">
-                        {experts.slice(0, 3).map((expert) => (
-                          <div key={expert.id} className="card">
-                            <h3>{expert.name || 'Expert'}</h3>
-                            {expert.specialties && expert.specialties.length > 0 && (
-                              <p className="card-meta">Specialties: {expert.specialties.join(', ')}</p>
-                            )}
-                            {expert.research_interests && expert.research_interests.length > 0 && (
-                              <p className="card-meta">Research Interests: {expert.research_interests.join(', ')}</p>
-                            )}
-                            {expert.location && (
-                              <p className="card-meta">Location: {expert.location}</p>
-                            )}
-                            <p className="card-meta">
-                              <strong>Status:</strong> {expert.is_platform_member ? 'Platform Member' : 'External Expert'}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="empty-state">No experts found. Researchers who complete their profiles will appear here.</p>
-                    )}
-                  </>
-                )}
-              </section>
             </div>
           </div>
         )}
@@ -648,6 +892,12 @@ const PatientDashboard = () => {
         isOpen={profileModalOpen} 
         onClose={() => setProfileModalOpen(false)}
         userType="patient"
+        onProfileUpdate={(updatedProfile) => {
+          setProfile(updatedProfile);
+          if (activeTab === 'dashboard') {
+            fetchDashboardData();
+          }
+        }}
       />
       <AccountTypeModal 
         isOpen={accountTypeModalOpen} 

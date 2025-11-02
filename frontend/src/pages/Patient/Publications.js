@@ -9,6 +9,7 @@ const Publications = () => {
   const [publications, setPublications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAISummary, setShowAISummary] = useState(null);
 
   useEffect(() => {
     fetchPublications();
@@ -87,6 +88,14 @@ const Publications = () => {
     }
   };
 
+  const handleShowAISummary = (pub) => {
+    if (pub.ai_summary) {
+      setShowAISummary(pub);
+    } else {
+      toast.info('AI summary not available for this publication');
+    }
+  };
+
   return (
     <div className="page-content">
       <h1>Publications</h1>
@@ -108,54 +117,57 @@ const Publications = () => {
       ) : (
         <div className="cards-grid">
           {publications.map((pub) => (
-            <div key={pub.id} className="card">
-              <h3>{pub.title}</h3>
+            <div key={pub.id} className="card modern-card publication-card">
+              <div className="card-favorite-icon" onClick={() => handleAddFavorite(pub.id)}>
+                <span className="star-icon">☆</span>
+              </div>
+              <h3 className="card-title">{pub.title}</h3>
+              {pub.journal && pub.publication_date && (
+                <p className="card-source">
+                  {pub.journal} • {new Date(pub.publication_date).getFullYear()}
+                </p>
+              )}
               {pub.authors && pub.authors.length > 0 && (
-                <p className="card-meta">
-                  <strong>Authors:</strong> {pub.authors.slice(0, 3).join(', ')}
-                  {pub.authors.length > 3 && ' et al.'}
+                <p className="card-authors">
+                  By {pub.authors.slice(0, 2).map(author => author.includes('Dr.') ? author : `Dr. ${author}`).join(', ')}
+                  {pub.authors.length > 2 && ' et al.'}
                 </p>
               )}
-              {pub.journal && (
-                <p className="card-meta">
-                  <strong>Journal:</strong> {pub.journal}
-                </p>
-              )}
-              {pub.publication_date && (
-                <p className="card-meta">
-                  <strong>Published:</strong> {new Date(pub.publication_date).toLocaleDateString()}
-                </p>
-              )}
-              {pub.abstract && (
-                <p className="card-description">
-                  {pub.abstract.substring(0, 250)}...
-                </p>
-              )}
-              {pub.ai_summary && (
-                <div className="ai-summary">
-                  <strong>AI Summary:</strong> {pub.ai_summary}
-                </div>
-              )}
-              <div className="card-actions">
-                <button
-                  onClick={() => handleAddFavorite(pub.id)}
-                  className="secondary-button"
-                >
-                  Add to Favorites
-                </button>
-                {pub.full_text_url && (
-                  <a
-                    href={pub.full_text_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="primary-button link-button"
-                  >
-                    Read Full Paper
-                  </a>
-                )}
+              <div className="card-actions-row">
+                <span className="action-link">
+                  {pub.full_text_url ? (
+                    <a
+                      href={pub.full_text_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View Full Paper
+                    </a>
+                  ) : (
+                    <span style={{ color: '#9ca3af', cursor: 'not-allowed' }}>View Full Paper</span>
+                  )}
+                </span>
+                <span className="action-link" onClick={() => handleShowAISummary(pub)}>
+                  Get AI Summary
+                </span>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {showAISummary && (
+        <div className="modal-overlay" onClick={() => setShowAISummary(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>AI Summary</h2>
+              <button className="modal-close" onClick={() => setShowAISummary(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <h3>{showAISummary.title}</h3>
+              <p>{showAISummary.ai_summary || 'AI summary not available.'}</p>
+            </div>
+          </div>
         </div>
       )}
 

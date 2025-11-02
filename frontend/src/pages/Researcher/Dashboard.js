@@ -324,6 +324,9 @@ const ResearcherDashboard = () => {
         isOpen={profileModalOpen} 
         onClose={() => setProfileModalOpen(false)}
         userType="researcher"
+        onProfileUpdate={(updatedProfile) => {
+          setProfile(updatedProfile);
+        }}
       />
       <AccountTypeModal 
         isOpen={accountTypeModalOpen} 

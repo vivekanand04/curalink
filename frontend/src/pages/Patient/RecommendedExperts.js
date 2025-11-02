@@ -1,24 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import { useNavigate } from 'react-router-dom';
 import '../Dashboard.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
-const HealthExperts = () => {
+const RecommendedExperts = () => {
   const [experts, setExperts] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [profile, setProfile] = useState(null);
   const [showMeetingForm, setShowMeetingForm] = useState(null);
   const [meetingForm, setMeetingForm] = useState({
     patientName: '',
     patientContact: '',
     message: '',
   });
+  const navigate = useNavigate();
 
   useEffect(() => {
+    fetchProfile();
     fetchExperts();
   }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      const response = await axios.get(`${API_URL}/patients/profile`, { headers });
+      setProfile(response.data);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    }
+  };
 
   const fetchExperts = async () => {
     setLoading(true);
@@ -28,44 +44,13 @@ const HealthExperts = () => {
         'Authorization': `Bearer ${token}`
       };
       
-      // First try to get personalized experts
-      try {
-        const personalizedResponse = await axios.get(`${API_URL}/experts/personalized`, { headers });
-        if (personalizedResponse.data && personalizedResponse.data.length > 0) {
-          setExperts(personalizedResponse.data);
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        // If personalized fails or returns empty, fetch all experts
-        console.log('No personalized experts, fetching all experts');
-      }
-      
-      // Fallback to all experts if personalized returns empty
-      const response = await axios.get(`${API_URL}/experts`, { headers });
-      setExperts(response.data);
+      // Fetch ONLY personalized experts
+      const response = await axios.get(`${API_URL}/experts/personalized`, { headers });
+      setExperts(response.data || []);
     } catch (error) {
-      toast.error('Failed to fetch experts');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSearch = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const headers = {
-        'Authorization': `Bearer ${token}`
-      };
-      
-      const response = await axios.get(`${API_URL}/experts/search`, {
-        params: { query: searchQuery },
-        headers
-      });
-      setExperts(response.data);
-    } catch (error) {
-      toast.error('Search failed');
+      console.error('Error fetching personalized experts:', error);
+      toast.error('Failed to fetch recommended experts');
+      setExperts([]);
     } finally {
       setLoading(false);
     }
@@ -81,12 +66,7 @@ const HealthExperts = () => {
       });
       toast.success('Expert followed successfully');
     } catch (error) {
-      // If it's a favorite action, just show message
-      if (error.response?.status === 404 || error.response?.status === 409) {
-        toast.info('Expert bookmarked');
-      } else {
-        toast.error('Failed to follow expert');
-      }
+      toast.error('Failed to follow expert');
     }
   };
 
@@ -112,25 +92,29 @@ const HealthExperts = () => {
   };
 
   return (
-    <div className="page-content">
-      <h1>Health Experts</h1>
-      <p className="subtitle">Find and connect with health experts in your field</p>
-
-      <div className="search-bar">
-        <input
-          type="text"
-          placeholder="Search by name, specialty, or keyword..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-        />
-        <button onClick={handleSearch} className="primary-button">Search</button>
+    <div className="recommended-page">
+      <div className="recommended-page-header">
+        <button className="back-button" onClick={() => navigate('/patient/dashboard')}>
+          ← Back to Dashboard
+        </button>
+        <h1>
+          {profile?.conditions && profile.conditions.length > 0 
+            ? `Recommended Health Experts for ${profile.conditions.join(', ')}`
+            : 'Recommended Health Experts'}
+        </h1>
+        <p className="subtitle">
+          {profile?.conditions && profile.conditions.length > 0 
+            ? `Health experts and researchers specialized in your conditions: ${profile.conditions.join(', ')}`
+            : 'Complete your profile to get personalized expert recommendations'}
+        </p>
       </div>
 
       {loading ? (
-        <p>Loading...</p>
-      ) : (
-        <div className="cards-grid">
+        <div className="loading-container">
+          <p>Loading recommended experts...</p>
+        </div>
+      ) : experts.length > 0 ? (
+        <div className="cards-grid recommended-grid">
           {experts.map((expert) => (
             <div key={expert.id} className="card modern-card expert-card">
               <div className="card-favorite-icon" onClick={() => handleFollow(expert.id)}>
@@ -168,55 +152,41 @@ const HealthExperts = () => {
                   </button>
                 )}
               </div>
-
               {showMeetingForm === expert.id && (
                 <div className="meeting-form">
                   <h4>Request a Meeting</h4>
-                  <div className="form-group">
-                    <label>Your Name *</label>
-                    <input
-                      type="text"
-                      value={meetingForm.patientName}
-                      onChange={(e) =>
-                        setMeetingForm({ ...meetingForm, patientName: e.target.value })
-                      }
-                      placeholder="Enter your name"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Contact Information *</label>
-                    <input
-                      type="text"
-                      value={meetingForm.patientContact}
-                      onChange={(e) =>
-                        setMeetingForm({ ...meetingForm, patientContact: e.target.value })
-                      }
-                      placeholder="Email or phone number"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Message (Optional)</label>
-                    <textarea
-                      value={meetingForm.message}
-                      onChange={(e) =>
-                        setMeetingForm({ ...meetingForm, message: e.target.value })
-                      }
-                      placeholder="Add any additional details..."
-                      rows="3"
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    placeholder="Your Name *"
+                    value={meetingForm.patientName}
+                    onChange={(e) => setMeetingForm({ ...meetingForm, patientName: e.target.value })}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Your Contact *"
+                    value={meetingForm.patientContact}
+                    onChange={(e) => setMeetingForm({ ...meetingForm, patientContact: e.target.value })}
+                  />
+                  <textarea
+                    placeholder="Message (optional)"
+                    value={meetingForm.message}
+                    onChange={(e) => setMeetingForm({ ...meetingForm, message: e.target.value })}
+                  />
                   <div className="form-actions">
-                    <button
-                      onClick={() => setShowMeetingForm(null)}
-                      className="secondary-button"
-                    >
-                      Cancel
-                    </button>
                     <button
                       onClick={() => handleRequestMeeting(expert.id)}
                       className="primary-button"
                     >
                       Send Request
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMeetingForm(null);
+                        setMeetingForm({ patientName: '', patientContact: '', message: '' });
+                      }}
+                      className="secondary-button"
+                    >
+                      Cancel
                     </button>
                   </div>
                 </div>
@@ -224,14 +194,24 @@ const HealthExperts = () => {
             </div>
           ))}
         </div>
-      )}
-
-      {experts.length === 0 && !loading && (
-        <p className="empty-state">No experts found. Try adjusting your search.</p>
+      ) : (
+        <div className="empty-state-container">
+          <p className="empty-state">
+            {profile?.conditions && profile.conditions.length > 0
+              ? 'No recommended experts found for your conditions. Try updating your profile or check back later.'
+              : 'Complete your profile with your conditions to get personalized expert recommendations.'}
+          </p>
+          <button 
+            className="primary-button" 
+            onClick={() => navigate('/patient/dashboard')}
+          >
+            Go to Dashboard
+          </button>
+        </div>
       )}
     </div>
   );
 };
 
-export default HealthExperts;
+export default RecommendedExperts;
 

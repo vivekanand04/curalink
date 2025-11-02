@@ -12,6 +12,9 @@ import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
 import PatientOnboarding from './pages/Patient/Onboarding';
 import PatientDashboard from './pages/Patient/Dashboard';
+import RecommendedClinicalTrials from './pages/Patient/RecommendedClinicalTrials';
+import RecommendedPublications from './pages/Patient/RecommendedPublications';
+import RecommendedExperts from './pages/Patient/RecommendedExperts';
 import ResearcherOnboarding from './pages/Researcher/Onboarding';
 import ResearcherDashboard from './pages/Researcher/Dashboard';
 
@@ -38,6 +41,30 @@ function App() {
               element={
                 <PrivateRoute allowedRoles={['patient']}>
                   <PatientDashboard />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/patient/recommended/trials"
+              element={
+                <PrivateRoute allowedRoles={['patient']}>
+                  <RecommendedClinicalTrials />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/patient/recommended/publications"
+              element={
+                <PrivateRoute allowedRoles={['patient']}>
+                  <RecommendedPublications />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/patient/recommended/experts"
+              element={
+                <PrivateRoute allowedRoles={['patient']}>
+                  <RecommendedExperts />
                 </PrivateRoute>
               }
             />
