@@ -112,7 +112,7 @@ const initializeDB = async () => {
         authors TEXT[],
         journal VARCHAR(255),
         publication_date DATE,
-        doi VARCHAR(255),
+        doi VARCHAR(255) UNIQUE,
         abstract TEXT,
         full_text_url VARCHAR(500),
         ai_summary TEXT,

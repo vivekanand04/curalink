@@ -131,7 +131,7 @@ router.put('/:id', authenticate, authorize('researcher'), async (req, res) => {
   }
 });
 
-// Get researcher's clinical trials
+// Get researcher's clinical trials (must come before /:id route)
 router.get('/my-trials', authenticate, authorize('researcher'), async (req, res) => {
   try {
     const result = await query(
@@ -139,6 +139,23 @@ router.get('/my-trials', authenticate, authorize('researcher'), async (req, res)
       [req.user.userId]
     );
     res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get a single clinical trial by ID (must come after specific routes)
+router.get('/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query('SELECT * FROM clinical_trials WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Clinical trial not found' });
+    }
+
+    res.json(result.rows[0]);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

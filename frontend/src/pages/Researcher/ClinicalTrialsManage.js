@@ -91,6 +91,23 @@ const ClinicalTrialsManage = () => {
     setShowForm(true);
   };
 
+  const handleAddFavorite = async (trialId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/favorites`, {
+        itemType: 'clinical_trial',
+        itemId: trialId,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      toast.success('Added to favorites');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to add to favorites');
+    }
+  };
+
   const handleDelete = async (trialId) => {
     if (!window.confirm('Are you sure you want to delete this clinical trial?')) {
       return;
@@ -245,6 +262,12 @@ const ClinicalTrialsManage = () => {
                   className="secondary-button"
                 >
                   Edit
+                </button>
+                <button
+                  onClick={() => handleAddFavorite(trial.id)}
+                  className="secondary-button"
+                >
+                  Add to Favorites
                 </button>
                 <button
                   onClick={() => handleDelete(trial.id)}

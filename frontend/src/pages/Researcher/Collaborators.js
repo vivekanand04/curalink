@@ -10,6 +10,7 @@ const Collaborators = () => {
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [specialtyFilter, setSpecialtyFilter] = useState('');
   const [activeTab, setActiveTab] = useState('search');
 
   useEffect(() => {
@@ -20,7 +21,15 @@ const Collaborators = () => {
   const fetchCollaborators = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/collaborators/search`);
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
+      const params = {};
+      if (specialtyFilter) params.specialty = specialtyFilter;
+      
+      const response = await axios.get(`${API_URL}/collaborators/search`, { params, headers });
       setCollaborators(response.data);
     } catch (error) {
       toast.error('Failed to fetch collaborators');
@@ -31,7 +40,12 @@ const Collaborators = () => {
 
   const fetchConnections = async () => {
     try {
-      const response = await axios.get(`${API_URL}/collaborators/connections`);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/collaborators/connections`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       setConnections(response.data);
     } catch (error) {
       console.error('Error fetching connections:', error);
@@ -41,9 +55,16 @@ const Collaborators = () => {
   const handleSearch = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/collaborators/search`, {
-        params: { query: searchQuery },
-      });
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
+      const params = {};
+      if (searchQuery) params.query = searchQuery;
+      if (specialtyFilter) params.specialty = specialtyFilter;
+      
+      const response = await axios.get(`${API_URL}/collaborators/search`, { params, headers });
       setCollaborators(response.data);
     } catch (error) {
       toast.error('Search failed');
@@ -54,7 +75,12 @@ const Collaborators = () => {
 
   const handleConnect = async (collaboratorId) => {
     try {
-      await axios.post(`${API_URL}/collaborators/${collaboratorId}/connect`);
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/collaborators/${collaboratorId}/connect`, {}, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       toast.success('Connection request sent');
       fetchConnections();
     } catch (error) {
@@ -64,11 +90,33 @@ const Collaborators = () => {
 
   const handleAcceptReject = async (connectionId, status) => {
     try {
-      await axios.put(`${API_URL}/collaborators/connections/${connectionId}`, { status });
+      const token = localStorage.getItem('token');
+      await axios.put(`${API_URL}/collaborators/connections/${connectionId}`, { status }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       toast.success(`Connection ${status}ed`);
       fetchConnections();
     } catch (error) {
       toast.error('Failed to update connection');
+    }
+  };
+
+  const handleAddFavorite = async (collaboratorId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/favorites`, {
+        itemType: 'collaborator',
+        itemId: collaboratorId,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      toast.success('Added to favorites');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to add to favorites');
     }
   };
 
@@ -111,6 +159,22 @@ const Collaborators = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             />
+            <select
+              value={specialtyFilter}
+              onChange={(e) => {
+                setSpecialtyFilter(e.target.value);
+                handleSearch();
+              }}
+              className="filter-select"
+              style={{ marginLeft: '10px', padding: '8px' }}
+            >
+              <option value="">All Specialties</option>
+              <option value="Oncology">Oncology</option>
+              <option value="Neurology">Neurology</option>
+              <option value="Immunology">Immunology</option>
+              <option value="Cardiology">Cardiology</option>
+              <option value="Cancer Research">Cancer Research</option>
+            </select>
             <button onClick={handleSearch} className="primary-button">
               Search
             </button>
@@ -135,6 +199,18 @@ const Collaborators = () => {
                         <strong>Research Interests:</strong> {collaborator.research_interests.join(', ')}
                       </p>
                     )}
+                    {(() => {
+                      const pubCount = collaborator.publications 
+                        ? (Array.isArray(collaborator.publications) 
+                            ? collaborator.publications.length 
+                            : JSON.parse(collaborator.publications || '[]').length)
+                        : 0;
+                      return pubCount > 0 && (
+                        <p className="card-meta">
+                          <strong>Publications:</strong> {pubCount} publication{pubCount !== 1 ? 's' : ''}
+                        </p>
+                      );
+                    })()}
                     {collaborator.email && (
                       <p className="card-meta">
                         <strong>Email:</strong> {collaborator.email}
@@ -142,18 +218,36 @@ const Collaborators = () => {
                     )}
                     <div className="card-actions">
                       {connectionStatus === null && (
-                        <button
-                          onClick={() => handleConnect(collaborator.user_id)}
-                          className="primary-button"
-                        >
-                          Connect
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleConnect(collaborator.user_id)}
+                            className="primary-button"
+                          >
+                            Connect
+                          </button>
+                          <button
+                            onClick={() => handleAddFavorite(collaborator.user_id)}
+                            className="secondary-button"
+                            style={{ marginLeft: '10px' }}
+                          >
+                            Add to Favorites
+                          </button>
+                        </>
                       )}
                       {connectionStatus === 'pending' && (
                         <span className="status-badge">Pending</span>
                       )}
                       {connectionStatus === 'accepted' && (
-                        <span className="status-badge accepted">Connected</span>
+                        <>
+                          <span className="status-badge accepted">Connected</span>
+                          <button
+                            onClick={() => handleAddFavorite(collaborator.user_id)}
+                            className="secondary-button"
+                            style={{ marginLeft: '10px' }}
+                          >
+                            Add to Favorites
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>

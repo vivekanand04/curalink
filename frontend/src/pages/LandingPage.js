@@ -46,7 +46,7 @@ const LandingPage = () => {
           </div>
 
           <p className="landing-footer">
-            Already have an account? <a href="/login">Sign in</a>
+            Already have an account? <a onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Sign in</a>
           </p>
         </div>
       </div>

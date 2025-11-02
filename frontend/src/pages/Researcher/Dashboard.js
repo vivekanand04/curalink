@@ -14,6 +14,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const ResearcherDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [profile, setProfile] = useState(null);
   const [clinicalTrials, setClinicalTrials] = useState([]);
   const [connections, setConnections] = useState([]);
@@ -78,44 +79,19 @@ const ResearcherDashboard = () => {
   return (
     <div className="dashboard-container">
       <nav className="dashboard-nav">
-        <div className="nav-brand">CuraLink</div>
-        <div className="nav-tabs">
-          <button
-            className={activeTab === 'dashboard' ? 'active' : ''}
-            onClick={() => setActiveTab('dashboard')}
+        <div className="nav-left">
+          <button 
+            className="sidebar-toggle"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label="Toggle sidebar"
           >
-            Dashboard
+            <span className={`hamburger ${sidebarOpen ? 'open' : ''}`}>
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
           </button>
-          <button
-            className={activeTab === 'collaborators' ? 'active' : ''}
-            onClick={() => setActiveTab('collaborators')}
-          >
-            Collaborators
-          </button>
-          <button
-            className={activeTab === 'trials' ? 'active' : ''}
-            onClick={() => setActiveTab('trials')}
-          >
-            Manage Clinical Trials
-          </button>
-          <button
-            className={activeTab === 'publications' ? 'active' : ''}
-            onClick={() => setActiveTab('publications')}
-          >
-            Publications
-          </button>
-          <button
-            className={activeTab === 'forums' ? 'active' : ''}
-            onClick={() => setActiveTab('forums')}
-          >
-            Forums
-          </button>
-          <button
-            className={activeTab === 'favorites' ? 'active' : ''}
-            onClick={() => setActiveTab('favorites')}
-          >
-            Favorites
-          </button>
+          <div className="nav-brand">CuraLink</div>
         </div>
         <div className="nav-user">
           <span>Welcome, {profile?.name || user?.email}</span>
@@ -123,7 +99,55 @@ const ResearcherDashboard = () => {
         </div>
       </nav>
 
-      <div className="dashboard-content">
+      <div className="dashboard-layout">
+        <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
+          <nav className="sidebar-nav">
+            <button
+              className={`sidebar-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+              onClick={() => setActiveTab('dashboard')}
+            >
+              <span className="sidebar-icon">📊</span>
+              <span className="sidebar-label">Dashboard</span>
+            </button>
+            <button
+              className={`sidebar-item ${activeTab === 'collaborators' ? 'active' : ''}`}
+              onClick={() => setActiveTab('collaborators')}
+            >
+              <span className="sidebar-icon">👥</span>
+              <span className="sidebar-label">Collaborators</span>
+            </button>
+            <button
+              className={`sidebar-item ${activeTab === 'trials' ? 'active' : ''}`}
+              onClick={() => setActiveTab('trials')}
+            >
+              <span className="sidebar-icon">🔬</span>
+              <span className="sidebar-label">Manage Clinical Trials</span>
+            </button>
+            <button
+              className={`sidebar-item ${activeTab === 'publications' ? 'active' : ''}`}
+              onClick={() => setActiveTab('publications')}
+            >
+              <span className="sidebar-icon">📄</span>
+              <span className="sidebar-label">Publications</span>
+            </button>
+            <button
+              className={`sidebar-item ${activeTab === 'forums' ? 'active' : ''}`}
+              onClick={() => setActiveTab('forums')}
+            >
+              <span className="sidebar-icon">💬</span>
+              <span className="sidebar-label">Forums</span>
+            </button>
+            <button
+              className={`sidebar-item ${activeTab === 'favorites' ? 'active' : ''}`}
+              onClick={() => setActiveTab('favorites')}
+            >
+              <span className="sidebar-icon">⭐</span>
+              <span className="sidebar-label">Favorites</span>
+            </button>
+          </nav>
+        </aside>
+
+        <div className={`dashboard-content ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         {activeTab === 'dashboard' && (
           <div className="dashboard-main">
             <h1>Welcome back, {profile?.name || 'Researcher'}!</h1>
@@ -177,19 +201,34 @@ const ResearcherDashboard = () => {
                 )}
               </section>
 
-              {profile && profile.publications && profile.publications.length > 0 && (
-                <section className="dashboard-section">
-                  <h2>My Publications</h2>
-                  <div className="cards-grid">
-                    {JSON.parse(profile.publications || '[]').slice(0, 3).map((pub, index) => (
-                      <div key={index} className="card">
-                        <h3>{pub.title || 'Publication'}</h3>
-                        <p className="card-meta">Journal: {pub.journal}</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
+              <section className="dashboard-section">
+                <h2>My Publications</h2>
+                {(() => {
+                  const profilePubs = profile?.publications ? (Array.isArray(profile.publications) ? profile.publications : JSON.parse(profile.publications || '[]')) : [];
+                  return profilePubs.length > 0 ? (
+                    <div className="cards-grid">
+                      {profilePubs.slice(0, 3).map((pub, index) => (
+                        <div key={index} className="card">
+                          <h3>{pub.title || 'Publication'}</h3>
+                          {pub.journal && <p className="card-meta">Journal: {pub.journal}</p>}
+                          {pub.ai_summary && (
+                            <div className="ai-summary">
+                              <strong>AI Summary:</strong> {pub.ai_summary}
+                            </div>
+                          )}
+                          {pub.url && (
+                            <a href={pub.url} target="_blank" rel="noopener noreferrer" className="link-button">
+                              View Publication
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="empty-state">No publications yet. Add publications manually or link your ORCID/ResearchGate to auto-import.</p>
+                  );
+                })()}
+              </section>
             </div>
           </div>
         )}
@@ -199,6 +238,7 @@ const ResearcherDashboard = () => {
         {activeTab === 'publications' && <PublicationsManage />}
         {activeTab === 'forums' && <Forums />}
         {activeTab === 'favorites' && <Favorites />}
+        </div>
       </div>
     </div>
   );

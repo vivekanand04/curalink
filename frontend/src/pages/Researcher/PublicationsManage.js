@@ -40,6 +40,23 @@ const PublicationsManage = () => {
     }
   };
 
+  const handleAddFavorite = async (pubId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/favorites`, {
+        itemType: 'publication',
+        itemId: pubId,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      toast.success('Added to favorites');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to add to favorites');
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formData.title) {
       toast.error('Title is required');
@@ -199,17 +216,25 @@ const PublicationsManage = () => {
                   <strong>AI Summary:</strong> {pub.ai_summary}
                 </div>
               )}
-              {pub.full_text_url && (
-                <a
-                  href={pub.full_text_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="link-button primary-button"
-                  style={{ display: 'inline-block', marginTop: '10px' }}
+              <div className="card-actions">
+                <button
+                  onClick={() => handleAddFavorite(pub.id)}
+                  className="secondary-button"
                 >
-                  Read Full Paper
-                </a>
-              )}
+                  Add to Favorites
+                </button>
+                {pub.full_text_url && (
+                  <a
+                    href={pub.full_text_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="link-button primary-button"
+                    style={{ display: 'inline-block', marginLeft: '10px' }}
+                  >
+                    Read Full Paper
+                  </a>
+                )}
+              </div>
             </div>
           ))}
         </div>

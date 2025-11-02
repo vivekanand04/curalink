@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
+const { generateAISummary } = require('../utils/ai');
+const { fetchORCIDPublications } = require('../utils/orcidApi');
+const { fetchResearchGatePublications } = require('../utils/researchgateApi');
 
 // Create or update researcher profile
 router.post('/profile', authenticate, authorize('researcher'), async (req, res) => {
@@ -41,6 +44,82 @@ router.post('/profile', authenticate, authorize('researcher'), async (req, res) 
          RETURNING *`,
         [userId, name, specialties, researchInterests, orcidId, researchgateId, availabilityForMeetings, JSON.stringify(publications || [])]
       );
+    }
+
+    // Auto-import publications from ORCID and ResearchGate if provided
+    let importedPublications = [];
+    try {
+      if (orcidId) {
+        console.log(`Fetching publications from ORCID: ${orcidId}`);
+        const orcidPubs = await fetchORCIDPublications(orcidId);
+        importedPublications = [...importedPublications, ...orcidPubs];
+      }
+
+      if (researchgateId) {
+        console.log(`Fetching publications from ResearchGate: ${researchgateId}`);
+        const rgPubs = await fetchResearchGatePublications(researchgateId);
+        importedPublications = [...importedPublications, ...rgPubs];
+      }
+
+      // If publications were imported, store them in the database and generate AI summaries
+      if (importedPublications.length > 0) {
+        const existingPubs = JSON.parse(result.rows[0].publications || '[]');
+        const newPubs = [];
+
+        for (const pub of importedPublications) {
+          // Check if publication already exists by DOI or title
+          const existing = existingPubs.find(p => p.doi === pub.doi || p.title === pub.title);
+          if (!existing) {
+            // Generate AI summary
+            try {
+              const aiSummary = await generateAISummary(pub.abstract || pub.title);
+              pub.ai_summary = aiSummary;
+            } catch (aiError) {
+              console.error('Error generating AI summary:', aiError);
+              pub.ai_summary = '';
+            }
+
+            // Store in publications table
+            try {
+              await query(
+                `INSERT INTO publications 
+                 (title, authors, journal, publication_date, doi, abstract, full_text_url, ai_summary, source)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                 ON CONFLICT (doi) DO NOTHING`,
+                [
+                  pub.title,
+                  pub.authors || [],
+                  pub.journal || null,
+                  pub.publicationDate || null,
+                  pub.doi || null,
+                  pub.abstract || null,
+                  pub.url || null,
+                  pub.ai_summary || null,
+                  orcidId ? 'orcid' : 'researchgate',
+                ]
+              );
+            } catch (pubError) {
+              console.error('Error storing publication:', pubError);
+            }
+
+            newPubs.push(pub);
+          }
+        }
+
+        // Update researcher profile with imported publications
+        if (newPubs.length > 0) {
+          const updatedPubs = [...existingPubs, ...newPubs];
+          await query(
+            'UPDATE researcher_profiles SET publications = $1 WHERE user_id = $2',
+            [JSON.stringify(updatedPubs), userId]
+          );
+          result.rows[0].publications = JSON.stringify(updatedPubs);
+          console.log(`Imported ${newPubs.length} publications from external sources`);
+        }
+      }
+    } catch (importError) {
+      console.error('Error importing publications:', importError);
+      // Don't fail the entire request if import fails
     }
 
     // Automatically add researcher to health_experts table when they complete profile
