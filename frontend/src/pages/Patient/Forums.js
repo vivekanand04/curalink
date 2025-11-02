@@ -26,9 +26,7 @@ const Forums = () => {
   }, []);
 
   useEffect(() => {
-    if (searchQuery.trim()) {
-      filterPosts(searchQuery);
-    } else {
+    if (!searchQuery.trim()) {
       setPosts(allPosts);
     }
   }, [searchQuery, allPosts]);
@@ -128,9 +126,7 @@ const Forums = () => {
       toast.success('Question posted successfully');
       setShowPostForm(false);
       setPostForm({ categoryId: '', title: '', content: '' });
-      if (selectedCategory) {
-        fetchPosts(selectedCategory);
-      }
+      fetchAllPosts();
     } catch (error) {
       toast.error('Failed to post question');
     }
@@ -184,10 +180,26 @@ const Forums = () => {
           type="text"
           placeholder="Search posts by title, content, or category..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && filterPosts(searchQuery)}
+          onChange={(e) => {
+            const query = e.target.value;
+            setSearchQuery(query);
+            if (query.trim()) {
+              filterPosts(query);
+            } else {
+              setPosts(allPosts);
+            }
+          }}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && searchQuery.trim()) {
+              filterPosts(searchQuery);
+            }
+          }}
         />
-        <button onClick={() => filterPosts(searchQuery)} className="primary-button">Search</button>
+        <button onClick={() => {
+          if (searchQuery.trim()) {
+            filterPosts(searchQuery);
+          }
+        }} className="primary-button">Search</button>
         {searchQuery && (
           <button onClick={() => {
             setSearchQuery('');
@@ -198,47 +210,57 @@ const Forums = () => {
 
       {showPostForm && (
         <div className="modal-overlay" onClick={() => setShowPostForm(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Ask a Question</h2>
-            <div className="form-group">
-              <label>Category *</label>
-              <select
-                value={postForm.categoryId}
-                onChange={(e) => setPostForm({ ...postForm, categoryId: e.target.value })}
-              >
-                <option value="">Select a category</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+          <div className="modal-content ask-question-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Ask a Question</h2>
+              <button className="modal-close" onClick={() => setShowPostForm(false)}>×</button>
             </div>
-            <div className="form-group">
-              <label>Title *</label>
-              <input
-                type="text"
-                value={postForm.title}
-                onChange={(e) => setPostForm({ ...postForm, title: e.target.value })}
-                placeholder="Enter your question title"
-              />
-            </div>
-            <div className="form-group">
-              <label>Question *</label>
-              <textarea
-                value={postForm.content}
-                onChange={(e) => setPostForm({ ...postForm, content: e.target.value })}
-                placeholder="Ask your question here..."
-                rows="6"
-              />
-            </div>
-            <div className="form-actions">
-              <button onClick={() => setShowPostForm(false)} className="secondary-button">
-                Cancel
-              </button>
-              <button onClick={handleCreatePost} className="primary-button">
-                Post Question
-              </button>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Category *</label>
+                <select
+                  value={postForm.categoryId}
+                  onChange={(e) => setPostForm({ ...postForm, categoryId: e.target.value })}
+                  className="form-select"
+                >
+                  <option value="">Select a category</option>
+                  {categories.filter((cat, index, self) => 
+                    index === self.findIndex(c => c.id === cat.id && c.name === cat.name)
+                  ).map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Title *</label>
+                <input
+                  type="text"
+                  value={postForm.title}
+                  onChange={(e) => setPostForm({ ...postForm, title: e.target.value })}
+                  placeholder="Enter your question title"
+                  className="form-input"
+                />
+              </div>
+              <div className="form-group">
+                <label>Question *</label>
+                <textarea
+                  value={postForm.content}
+                  onChange={(e) => setPostForm({ ...postForm, content: e.target.value })}
+                  placeholder="Ask your question here..."
+                  rows="6"
+                  className="form-textarea"
+                />
+              </div>
+              <div className="form-actions">
+                <button onClick={() => setShowPostForm(false)} className="secondary-button">
+                  Cancel
+                </button>
+                <button onClick={handleCreatePost} className="primary-button">
+                  Post Question
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -249,22 +271,30 @@ const Forums = () => {
         {loading ? (
           <p>Loading...</p>
         ) : (
-          <div className="posts-list">
+          <div className="posts-list-reddit">
             {posts.map((post) => (
               <div
                 key={post.id}
-                className="post-card"
+                className="post-card-reddit"
                 onClick={() => fetchPostDetails(post.id)}
               >
-                <div className="post-header">
-                  <span className="post-category-badge">{post.category_name}</span>
+                <div className="post-voting-section">
+                  <div className="vote-arrow-up">▲</div>
+                  <div className="vote-count">{post.reply_count || 0}</div>
+                  <div className="vote-arrow-down">▼</div>
                 </div>
-                <h3>{post.title}</h3>
-                <p className="post-meta">
-                  {new Date(post.created_at).toLocaleDateString()} |{' '}
-                  {post.reply_count || 0} replies
-                </p>
-                <p className="post-preview">{post.content.substring(0, 150)}...</p>
+                <div className="post-content-section">
+                  <div className="post-header-reddit">
+                    <span className="post-category-badge-reddit">{post.category_name}</span>
+                    <span className="post-author-reddit">by {post.author_name || 'User'}</span>
+                    <span className="post-time-reddit">{new Date(post.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <h3 className="post-title-reddit">{post.title}</h3>
+                  <p className="post-body-reddit">{post.content}</p>
+                  <div className="post-footer-reddit">
+                    <span className="post-comment-link">{post.reply_count || 0} comments</span>
+                  </div>
+                </div>
               </div>
             ))}
             {posts.length === 0 && !loading && (

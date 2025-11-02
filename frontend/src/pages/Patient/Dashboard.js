@@ -32,8 +32,9 @@ const PatientDashboard = () => {
     discussions: 0
   });
   const [recentPosts, setRecentPosts] = useState([]);
-  const [showAISummary, setShowAISummary] = useState(null);
+  const [expandedAISummaries, setExpandedAISummaries] = useState({}); // Track expanded AI summaries: { 'clinical_trial_1': true, 'publication_2': true }
   const [favorites, setFavorites] = useState({}); // Track favorites: { 'clinical_trial_1': true, 'expert_2': true, etc. }
+  const [followedExperts, setFollowedExperts] = useState(new Set());
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -56,11 +57,16 @@ const PatientDashboard = () => {
       };
       const response = await axios.get(`${API_URL}/favorites`, { headers });
       const favoritesMap = {};
+      const followedExpertIds = new Set();
       response.data.forEach(fav => {
         const key = `${fav.item_type}_${fav.item_id}`;
         favoritesMap[key] = true;
+        if (fav.item_type === 'expert') {
+          followedExpertIds.add(fav.item_id);
+        }
       });
       setFavorites(favoritesMap);
+      setFollowedExperts(followedExpertIds);
     } catch (error) {
       console.error('Error fetching favorites:', error);
     }
@@ -101,22 +107,42 @@ const PatientDashboard = () => {
   const handleFollowExpert = async (expertId) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/experts/${expertId}/follow`, {}, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      toast.success('Expert followed successfully');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
+      if (followedExperts.has(expertId)) {
+        // Unfollow
+        await axios.delete(`${API_URL}/favorites/expert/${expertId}`, { headers });
+        setFollowedExperts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(expertId);
+          return newSet;
+        });
+        setFavorites(prev => {
+          const newFavs = { ...prev };
+          delete newFavs[`expert_${expertId}`];
+          return newFavs;
+        });
+        toast.success('Expert unfollowed');
+      } else {
+        // Follow
+        await axios.post(`${API_URL}/experts/${expertId}/follow`, {}, { headers });
+        setFollowedExperts(prev => new Set(prev).add(expertId));
+        setFavorites(prev => ({ ...prev, [`expert_${expertId}`]: true }));
+        toast.success('Expert followed successfully');
+      }
     } catch (error) {
       if (error.response?.status === 404 || error.response?.status === 409) {
         toast.info('Expert bookmarked');
+        setFollowedExperts(prev => new Set(prev).add(expertId));
       } else {
         toast.error('Failed to follow expert');
       }
     }
   };
 
-  const [showMeetingForm, setShowMeetingForm] = useState(null);
+  const [showMeetingModal, setShowMeetingModal] = useState(null);
   const [meetingForm, setMeetingForm] = useState({
     patientName: '',
     patientContact: '',
@@ -137,7 +163,7 @@ const PatientDashboard = () => {
         }
       });
       toast.success('Meeting request sent successfully');
-      setShowMeetingForm(null);
+      setShowMeetingModal(null);
       setMeetingForm({ patientName: '', patientContact: '', message: '' });
     } catch (error) {
       toast.error('Failed to send meeting request');
@@ -596,15 +622,21 @@ const PatientDashboard = () => {
                               Contact Trial
                             </span>
                             <span className="action-link" onClick={() => {
-                              if (trial.ai_summary) {
-                                alert(`AI Summary:\n\n${trial.ai_summary}`);
-                              } else {
-                                alert('AI summary not available for this trial');
-                              }
+                              setExpandedAISummaries(prev => ({
+                                ...prev,
+                                [`trial_${trial.id}`]: !prev[`trial_${trial.id}`]
+                              }));
                             }}>
-                              Get AI Summary
+                              {expandedAISummaries[`trial_${trial.id}`] ? 'Hide AI Summary' : 'Get AI Summary'}
                             </span>
                           </div>
+                          {expandedAISummaries[`trial_${trial.id}`] && trial.ai_summary && (
+                            <div className="ai-summary-container">
+                              <div className="ai-summary-content">
+                                {trial.ai_summary}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -638,7 +670,7 @@ const PatientDashboard = () => {
                             <span className={`star-icon ${favorites[`publication_${pub.id}`] ? 'star-filled' : ''}`}>
                               {favorites[`publication_${pub.id}`] ? '★' : '☆'}
                             </span>
-                          </div>
+                        </div>
                           <h3 className="card-title">{pub.title}</h3>
                           {pub.journal && pub.publication_date && (
                             <p className="card-source">
@@ -666,16 +698,22 @@ const PatientDashboard = () => {
                               )}
                             </span>
                             <span className="action-link" onClick={() => {
-                              if (pub.ai_summary) {
-                                alert(`AI Summary:\n\n${pub.ai_summary}`);
-                              } else {
-                                alert('AI summary not available for this publication');
-                              }
+                              setExpandedAISummaries(prev => ({
+                                ...prev,
+                                [`pub_${pub.id}`]: !prev[`pub_${pub.id}`]
+                              }));
                             }}>
-                              Get AI Summary
+                              {expandedAISummaries[`pub_${pub.id}`] ? 'Hide AI Summary' : 'Get AI Summary'}
                             </span>
                           </div>
-                        </div>
+                          {expandedAISummaries[`pub_${pub.id}`] && pub.ai_summary && (
+                            <div className="ai-summary-container">
+                              <div className="ai-summary-content">
+                                {pub.ai_summary}
+                              </div>
+                            </div>
+                          )}
+                    </div>
                   ))}
                 </div>
                   </div>
@@ -724,64 +762,25 @@ const PatientDashboard = () => {
                                 ))}
                               </div>
                             </>
-                          )}
+                            )}
                           <div className="card-actions-buttons">
                             <button
                               onClick={() => handleFollowExpert(expert.id)}
-                              className="follow-button"
+                              className={`follow-button ${followedExperts.has(expert.id) ? 'following' : ''}`}
                             >
-                              Follow
+                              {followedExperts.has(expert.id) ? 'Following' : 'Follow'}
                             </button>
                             {expert.is_platform_member && (
                               <button
-                                onClick={() => setShowMeetingForm(expert.id)}
+                                onClick={() => setShowMeetingModal(expert.id)}
                                 className="request-meeting-button"
                               >
                                 Request Meeting
                               </button>
                             )}
                           </div>
-                          {showMeetingForm === expert.id && (
-                            <div className="meeting-form">
-                              <h4>Request a Meeting</h4>
-                              <input
-                                type="text"
-                                placeholder="Your Name *"
-                                value={meetingForm.patientName}
-                                onChange={(e) => setMeetingForm({ ...meetingForm, patientName: e.target.value })}
-                              />
-                              <input
-                                type="text"
-                                placeholder="Your Contact *"
-                                value={meetingForm.patientContact}
-                                onChange={(e) => setMeetingForm({ ...meetingForm, patientContact: e.target.value })}
-                              />
-                              <textarea
-                                placeholder="Message (optional)"
-                                value={meetingForm.message}
-                                onChange={(e) => setMeetingForm({ ...meetingForm, message: e.target.value })}
-                              />
-                              <div className="form-actions">
-                                <button
-                                  onClick={() => handleRequestMeeting(expert.id)}
-                                  className="primary-button"
-                                >
-                                  Send Request
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setShowMeetingForm(null);
-                                    setMeetingForm({ patientName: '', patientContact: '', message: '' });
-                                  }}
-                                  className="secondary-button"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                          </div>
+                        ))}
                     </div>
                   </div>
                 ) : (
@@ -853,27 +852,38 @@ const PatientDashboard = () => {
                   View All →
                 </button>
               </div>
-              <div className="discussions-list">
+              <div className="discussions-list-reddit">
                 {recentPosts.length > 0 ? (
-                  recentPosts.map((post) => (
-                    <div key={post.id} className="discussion-item" onClick={() => {
-                      setActiveTab('forums');
-                      // You might want to navigate to the specific post here
-                    }}>
-                      <div className="discussion-tags">
-                        <span className="discussion-tag">{post.category_name}</span>
-                          </div>
-                      <div className="discussion-meta">
-                        <span>by {post.author_name || 'User'}</span>
-                        <span>·</span>
-                        <span>{post.reply_count || 0} replies</span>
+                  recentPosts.slice(0, 2).map((post) => (
+                    <div key={post.id} className="post-card-reddit">
+                      <div className="post-voting-section">
+                        <div className="vote-arrow-up">▲</div>
+                        <div className="vote-count">{post.reply_count || 0}</div>
+                        <div className="vote-arrow-down">▼</div>
                       </div>
-                      <h3 className="discussion-title">{post.title}</h3>
-                      <p className="discussion-preview">{post.content?.substring(0, 200)}...</p>
+                      <div className="post-content-section">
+                        <div className="post-header-reddit">
+                          <span className="post-category-badge-reddit">{post.category_name}</span>
+                          <span className="post-author-reddit">by {post.author_name || 'User'}</span>
+                          <span className="post-time-reddit">{new Date(post.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <h3 className="post-title-reddit">{post.title}</h3>
+                        <p className="post-body-reddit">{post.content}</p>
+                        <div className="post-footer-reddit">
+                          <span className="post-comment-link">{post.reply_count || 0} comments</span>
+                        </div>
+                      </div>
                     </div>
                   ))
-                    ) : (
+                ) : (
                   <p className="empty-state">No recent discussions available</p>
+                )}
+                {recentPosts.length > 0 && (
+                  <div className="view-all-discussions">
+                    <span className="view-all-text" onClick={() => setActiveTab('forums')}>
+                      View all
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -904,6 +914,76 @@ const PatientDashboard = () => {
         onClose={() => setAccountTypeModalOpen(false)}
         currentUserType="patient"
       />
+      {showMeetingModal && (
+        <div className="modal-overlay" onClick={() => {
+          setShowMeetingModal(null);
+          setMeetingForm({ patientName: '', patientContact: '', message: '' });
+        }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Request a Meeting</h2>
+              <button className="modal-close" onClick={() => {
+                setShowMeetingModal(null);
+                setMeetingForm({ patientName: '', patientContact: '', message: '' });
+              }}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Your Name *</label>
+                <input
+                  type="text"
+                  value={meetingForm.patientName}
+                  onChange={(e) =>
+                    setMeetingForm({ ...meetingForm, patientName: e.target.value })
+                  }
+                  placeholder="Enter your name"
+                />
+              </div>
+              <div className="form-group">
+                <label>Contact Information *</label>
+                <input
+                  type="text"
+                  value={meetingForm.patientContact}
+                  onChange={(e) =>
+                    setMeetingForm({ ...meetingForm, patientContact: e.target.value })
+                  }
+                  placeholder="Email or phone number"
+                />
+              </div>
+              <div className="form-group">
+                <label>Message (Optional)</label>
+                <textarea
+                  value={meetingForm.message}
+                  onChange={(e) =>
+                    setMeetingForm({ ...meetingForm, message: e.target.value })
+                  }
+                  placeholder="Add any additional details..."
+                  rows="4"
+                />
+              </div>
+              <div className="form-actions">
+                <button
+                  onClick={() => {
+                    setShowMeetingModal(null);
+                    setMeetingForm({ patientName: '', patientContact: '', message: '' });
+                  }}
+                  className="secondary-button"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    handleRequestMeeting(showMeetingModal);
+                  }}
+                  className="primary-button"
+                >
+                  Send Request
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

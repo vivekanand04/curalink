@@ -9,7 +9,7 @@ const Publications = () => {
   const [publications, setPublications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showAISummary, setShowAISummary] = useState(null);
+  const [expandedAISummaries, setExpandedAISummaries] = useState({});
 
   useEffect(() => {
     fetchPublications();
@@ -75,12 +75,11 @@ const Publications = () => {
     }
   };
 
-  const handleShowAISummary = (pub) => {
-    if (pub.ai_summary) {
-      setShowAISummary(pub);
-    } else {
-      toast.info('AI summary not available for this publication');
-    }
+  const toggleAISummary = (pubId) => {
+    setExpandedAISummaries(prev => ({
+      ...prev,
+      [pubId]: !prev[pubId]
+    }));
   };
 
   return (
@@ -134,27 +133,19 @@ const Publications = () => {
                     <span style={{ color: '#9ca3af', cursor: 'not-allowed' }}>View Full Paper</span>
                   )}
                 </span>
-                <span className="action-link" onClick={() => handleShowAISummary(pub)}>
-                  Get AI Summary
+                <span className="action-link" onClick={() => toggleAISummary(pub.id)}>
+                  {expandedAISummaries[pub.id] ? 'Hide AI Summary' : 'Get AI Summary'}
                 </span>
               </div>
+              {expandedAISummaries[pub.id] && pub.ai_summary && (
+                <div className="ai-summary-container">
+                  <div className="ai-summary-content">
+                    {pub.ai_summary}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
-        </div>
-      )}
-
-      {showAISummary && (
-        <div className="modal-overlay" onClick={() => setShowAISummary(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>AI Summary</h2>
-              <button className="modal-close" onClick={() => setShowAISummary(null)}>×</button>
-            </div>
-            <div className="modal-body">
-              <h3>{showAISummary.title}</h3>
-              <p>{showAISummary.ai_summary || 'AI summary not available.'}</p>
-            </div>
-          </div>
         </div>
       )}
 

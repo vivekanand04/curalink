@@ -11,7 +11,7 @@ const ClinicalTrials = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
-  const [showAISummary, setShowAISummary] = useState(null);
+  const [expandedAISummaries, setExpandedAISummaries] = useState({});
 
   useEffect(() => {
     fetchTrials();
@@ -83,12 +83,11 @@ const ClinicalTrials = () => {
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
-  const handleShowAISummary = (trial) => {
-    if (trial.ai_summary) {
-      setShowAISummary(trial);
-    } else {
-      toast.info('AI summary not available for this trial');
-    }
+  const toggleAISummary = (trialId) => {
+    setExpandedAISummaries(prev => ({
+      ...prev,
+      [trialId]: !prev[trialId]
+    }));
   };
 
   return (
@@ -150,27 +149,19 @@ const ClinicalTrials = () => {
                 <span className="action-link" onClick={() => handleContactTrial(trial)}>
                   Contact Trial
                 </span>
-                <span className="action-link" onClick={() => handleShowAISummary(trial)}>
-                  Get AI Summary
+                <span className="action-link" onClick={() => toggleAISummary(trial.id)}>
+                  {expandedAISummaries[trial.id] ? 'Hide AI Summary' : 'Get AI Summary'}
                 </span>
               </div>
+              {expandedAISummaries[trial.id] && trial.ai_summary && (
+                <div className="ai-summary-container">
+                  <div className="ai-summary-content">
+                    {trial.ai_summary}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
-        </div>
-      )}
-
-      {showAISummary && (
-        <div className="modal-overlay" onClick={() => setShowAISummary(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>AI Summary</h2>
-              <button className="modal-close" onClick={() => setShowAISummary(null)}>×</button>
-            </div>
-            <div className="modal-body">
-              <h3>{showAISummary.title}</h3>
-              <p>{showAISummary.ai_summary || 'AI summary not available.'}</p>
-            </div>
-          </div>
         </div>
       )}
 

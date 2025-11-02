@@ -9,7 +9,8 @@ const HealthExperts = () => {
   const [experts, setExperts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showMeetingForm, setShowMeetingForm] = useState(null);
+  const [followedExperts, setFollowedExperts] = useState(new Set());
+  const [showMeetingModal, setShowMeetingModal] = useState(null);
   const [meetingForm, setMeetingForm] = useState({
     patientName: '',
     patientContact: '',
@@ -18,7 +19,25 @@ const HealthExperts = () => {
 
   useEffect(() => {
     fetchExperts();
+    fetchFollowedExperts();
   }, []);
+
+  const fetchFollowedExperts = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      const response = await axios.get(`${API_URL}/favorites`, {
+        params: { type: 'expert' },
+        headers
+      });
+      const followedIds = new Set(response.data.map(fav => fav.item_id));
+      setFollowedExperts(followedIds);
+    } catch (error) {
+      console.error('Error fetching followed experts:', error);
+    }
+  };
 
   const fetchExperts = async () => {
     setLoading(true);
@@ -61,16 +80,29 @@ const HealthExperts = () => {
   const handleFollow = async (expertId) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/experts/${expertId}/follow`, {}, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      toast.success('Expert followed successfully');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
+      if (followedExperts.has(expertId)) {
+        // Unfollow
+        await axios.delete(`${API_URL}/favorites/expert/${expertId}`, { headers });
+        setFollowedExperts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(expertId);
+          return newSet;
+        });
+        toast.success('Expert unfollowed');
+      } else {
+        // Follow
+        await axios.post(`${API_URL}/experts/${expertId}/follow`, {}, { headers });
+        setFollowedExperts(prev => new Set(prev).add(expertId));
+        toast.success('Expert followed successfully');
+      }
     } catch (error) {
-      // If it's a favorite action, just show message
       if (error.response?.status === 404 || error.response?.status === 409) {
         toast.info('Expert bookmarked');
+        setFollowedExperts(prev => new Set(prev).add(expertId));
       } else {
         toast.error('Failed to follow expert');
       }
@@ -91,8 +123,6 @@ const HealthExperts = () => {
         }
       });
       toast.success('Meeting request sent successfully');
-      setShowMeetingForm(null);
-      setMeetingForm({ patientName: '', patientContact: '', message: '' });
     } catch (error) {
       toast.error('Failed to send meeting request');
     }
@@ -142,74 +172,94 @@ const HealthExperts = () => {
               <div className="card-actions-buttons">
                 <button
                   onClick={() => handleFollow(expert.id)}
-                  className="follow-button"
+                  className={`follow-button ${followedExperts.has(expert.id) ? 'following' : ''}`}
                 >
-                  Follow
+                  {followedExperts.has(expert.id) ? 'Following' : 'Follow'}
                 </button>
                 {expert.is_platform_member && (
                   <button
-                    onClick={() => setShowMeetingForm(expert.id)}
+                    onClick={() => setShowMeetingModal(expert.id)}
                     className="request-meeting-button"
                   >
                     Request Meeting
                   </button>
                 )}
               </div>
-
-              {showMeetingForm === expert.id && (
-                <div className="meeting-form">
-                  <h4>Request a Meeting</h4>
-                  <div className="form-group">
-                    <label>Your Name *</label>
-                    <input
-                      type="text"
-                      value={meetingForm.patientName}
-                      onChange={(e) =>
-                        setMeetingForm({ ...meetingForm, patientName: e.target.value })
-                      }
-                      placeholder="Enter your name"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Contact Information *</label>
-                    <input
-                      type="text"
-                      value={meetingForm.patientContact}
-                      onChange={(e) =>
-                        setMeetingForm({ ...meetingForm, patientContact: e.target.value })
-                      }
-                      placeholder="Email or phone number"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Message (Optional)</label>
-                    <textarea
-                      value={meetingForm.message}
-                      onChange={(e) =>
-                        setMeetingForm({ ...meetingForm, message: e.target.value })
-                      }
-                      placeholder="Add any additional details..."
-                      rows="3"
-                    />
-                  </div>
-                  <div className="form-actions">
-                    <button
-                      onClick={() => setShowMeetingForm(null)}
-                      className="secondary-button"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => handleRequestMeeting(expert.id)}
-                      className="primary-button"
-                    >
-                      Send Request
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           ))}
+        </div>
+      )}
+
+      {showMeetingModal && (
+        <div className="modal-overlay" onClick={() => {
+          setShowMeetingModal(null);
+          setMeetingForm({ patientName: '', patientContact: '', message: '' });
+        }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Request a Meeting</h2>
+              <button className="modal-close" onClick={() => {
+                setShowMeetingModal(null);
+                setMeetingForm({ patientName: '', patientContact: '', message: '' });
+              }}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Your Name *</label>
+                <input
+                  type="text"
+                  value={meetingForm.patientName}
+                  onChange={(e) =>
+                    setMeetingForm({ ...meetingForm, patientName: e.target.value })
+                  }
+                  placeholder="Enter your name"
+                />
+              </div>
+              <div className="form-group">
+                <label>Contact Information *</label>
+                <input
+                  type="text"
+                  value={meetingForm.patientContact}
+                  onChange={(e) =>
+                    setMeetingForm({ ...meetingForm, patientContact: e.target.value })
+                  }
+                  placeholder="Email or phone number"
+                />
+              </div>
+              <div className="form-group">
+                <label>Message (Optional)</label>
+                <textarea
+                  value={meetingForm.message}
+                  onChange={(e) =>
+                    setMeetingForm({ ...meetingForm, message: e.target.value })
+                  }
+                  placeholder="Add any additional details..."
+                  rows="4"
+                />
+              </div>
+              <div className="form-actions">
+                <button
+                  onClick={() => {
+                    setShowMeetingModal(null);
+                    setMeetingForm({ patientName: '', patientContact: '', message: '' });
+                  }}
+                  className="secondary-button"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    handleRequestMeeting(showMeetingModal);
+                    setShowMeetingModal(null);
+                    setMeetingForm({ patientName: '', patientContact: '', message: '' });
+                  }}
+                  className="primary-button"
+                >
+                  Send Request
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

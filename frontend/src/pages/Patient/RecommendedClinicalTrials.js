@@ -10,6 +10,7 @@ const RecommendedClinicalTrials = () => {
   const [trials, setTrials] = useState([]);
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [expandedAISummaries, setExpandedAISummaries] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -117,15 +118,21 @@ const RecommendedClinicalTrials = () => {
                   Contact Trial
                 </span>
                 <span className="action-link" onClick={() => {
-                  if (trial.ai_summary) {
-                    alert(`AI Summary:\n\n${trial.ai_summary}`);
-                  } else {
-                    alert('AI summary not available for this trial');
-                  }
+                  setExpandedAISummaries(prev => ({
+                    ...prev,
+                    [trial.id]: !prev[trial.id]
+                  }));
                 }}>
-                  Get AI Summary
+                  {expandedAISummaries[trial.id] ? 'Hide AI Summary' : 'Get AI Summary'}
                 </span>
               </div>
+              {expandedAISummaries[trial.id] && trial.ai_summary && (
+                <div className="ai-summary-container">
+                  <div className="ai-summary-content">
+                    {trial.ai_summary}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

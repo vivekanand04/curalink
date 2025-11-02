@@ -10,6 +10,7 @@ const RecommendedPublications = () => {
   const [publications, setPublications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [expandedAISummaries, setExpandedAISummaries] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -123,15 +124,21 @@ const RecommendedPublications = () => {
                   )}
                 </span>
                 <span className="action-link" onClick={() => {
-                  if (pub.ai_summary) {
-                    alert(`AI Summary:\n\n${pub.ai_summary}`);
-                  } else {
-                    alert('AI summary not available for this publication');
-                  }
+                  setExpandedAISummaries(prev => ({
+                    ...prev,
+                    [pub.id]: !prev[pub.id]
+                  }));
                 }}>
-                  Get AI Summary
+                  {expandedAISummaries[pub.id] ? 'Hide AI Summary' : 'Get AI Summary'}
                 </span>
               </div>
+              {expandedAISummaries[pub.id] && pub.ai_summary && (
+                <div className="ai-summary-container">
+                  <div className="ai-summary-content">
+                    {pub.ai_summary}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
