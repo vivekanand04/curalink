@@ -224,13 +224,32 @@ const Forums = () => {
                   className="form-select"
                 >
                   <option value="">Select a category</option>
-                  {categories.filter((cat, index, self) => 
-                    index === self.findIndex(c => c.id === cat.id && c.name === cat.name)
-                  ).map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
+                  {(() => {
+                    // Use Set to track unique categories by id
+                    const seenIds = new Set();
+                    const uniqueCategories = categories.filter(cat => {
+                      if (seenIds.has(cat.id)) {
+                        return false; // Duplicate ID
+                      }
+                      // Also check for duplicate names (case-insensitive)
+                      const duplicateName = categories.some((c, idx) => 
+                        idx < categories.indexOf(cat) && 
+                        c.name && 
+                        cat.name && 
+                        c.name.toLowerCase().trim() === cat.name.toLowerCase().trim()
+                      );
+                      if (duplicateName) {
+                        return false; // Duplicate name
+                      }
+                      seenIds.add(cat.id);
+                      return true;
+                    });
+                    return uniqueCategories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ));
+                  })()}
                 </select>
               </div>
               <div className="form-group">

@@ -842,6 +842,7 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
   padding: 10px 4px;
+  align-items: stretch;
 }
 
 .recommended-card {
@@ -852,7 +853,7 @@
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
-  height: fit-content;
+  height: 100%;
 }
 
 .recommended-card:hover {
@@ -976,12 +977,13 @@
   grid-template-columns: repeat(2,1fr);
   gap: 30px;
   margin-top: 30px;
+  align-items: stretch;
 }
 
 .recommended-grid .recommended-card {
   flex: 1;
   max-width: 100%;
-  height: fit-content;
+  height: 100%;
 }
 
 .empty-state-container {
@@ -1225,6 +1227,7 @@
   display: grid;
   grid-template-columns: repeat(2,1fr);
   gap: 20px;
+  align-items: stretch;
 }
 
 .card {
@@ -1233,6 +1236,9 @@
   padding: 24px;
   border: 1px solid #e5e5e5;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .card:hover {
@@ -2188,6 +2194,7 @@
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 .modern-card:hover {
