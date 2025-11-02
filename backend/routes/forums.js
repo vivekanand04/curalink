@@ -150,6 +150,30 @@ router.post('/posts/:postId/replies', authenticate, authorize('researcher'), asy
   }
 });
 
+// Get all forum posts (for forums page)
+router.get('/posts', authenticate, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT fp.*, 
+              fc.name as category_name,
+              fc.id as category_id,
+              u.user_type,
+              (SELECT COUNT(*) FROM forum_replies WHERE post_id = fp.id) as reply_count,
+              COALESCE(rp.name, pp.name) as author_name
+       FROM forum_posts fp
+       JOIN forum_categories fc ON fp.category_id = fc.id
+       JOIN users u ON fp.user_id = u.id
+       LEFT JOIN researcher_profiles rp ON u.id = rp.user_id AND u.user_type = 'researcher'
+       LEFT JOIN patient_profiles pp ON u.id = pp.user_id AND u.user_type = 'patient'
+       ORDER BY fp.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Get recent forum posts (for dashboard)
 router.get('/recent-posts', authenticate, async (req, res) => {
   try {

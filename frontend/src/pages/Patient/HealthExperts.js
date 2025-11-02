@@ -28,20 +28,7 @@ const HealthExperts = () => {
         'Authorization': `Bearer ${token}`
       };
       
-      // First try to get personalized experts
-      try {
-        const personalizedResponse = await axios.get(`${API_URL}/experts/personalized`, { headers });
-        if (personalizedResponse.data && personalizedResponse.data.length > 0) {
-          setExperts(personalizedResponse.data);
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        // If personalized fails or returns empty, fetch all experts
-        console.log('No personalized experts, fetching all experts');
-      }
-      
-      // Fallback to all experts if personalized returns empty
+      // Fetch all experts initially
       const response = await axios.get(`${API_URL}/experts`, { headers });
       setExperts(response.data);
     } catch (error) {

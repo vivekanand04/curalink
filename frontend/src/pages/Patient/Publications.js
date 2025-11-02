@@ -23,20 +23,7 @@ const Publications = () => {
         'Authorization': `Bearer ${token}`
       };
       
-      // First try to get personalized publications
-      try {
-        const personalizedResponse = await axios.get(`${API_URL}/publications/personalized`, { headers });
-        if (personalizedResponse.data && personalizedResponse.data.length > 0) {
-          setPublications(personalizedResponse.data);
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        // If personalized fails or returns empty, fetch all publications
-        console.log('No personalized publications, fetching all publications');
-      }
-      
-      // Fallback to all publications if personalized returns empty
+      // Fetch all publications initially
       const response = await axios.get(`${API_URL}/publications`, { headers });
       setPublications(response.data);
     } catch (error) {

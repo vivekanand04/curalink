@@ -8,6 +8,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 const Forums = () => {
   const [categories, setCategories] = useState([]);
   const [posts, setPosts] = useState([]);
+  const [allPosts, setAllPosts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedPost, setSelectedPost] = useState(null);
   const [showPostForm, setShowPostForm] = useState(false);
@@ -17,16 +18,20 @@ const Forums = () => {
     content: '',
   });
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchCategories();
+    fetchAllPosts();
   }, []);
 
   useEffect(() => {
-    if (selectedCategory) {
-      fetchPosts(selectedCategory);
+    if (searchQuery.trim()) {
+      filterPosts(searchQuery);
+    } else {
+      setPosts(allPosts);
     }
-  }, [selectedCategory]);
+  }, [searchQuery, allPosts]);
 
   const fetchCategories = async () => {
     try {
@@ -41,6 +46,33 @@ const Forums = () => {
       console.error('Error fetching categories:', error);
       toast.error('Failed to fetch categories');
     }
+  };
+
+  const fetchAllPosts = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/forums/posts`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setAllPosts(response.data);
+      setPosts(response.data);
+    } catch (error) {
+      toast.error('Failed to fetch posts');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterPosts = (query) => {
+    const filtered = allPosts.filter(post => 
+      post.title.toLowerCase().includes(query.toLowerCase()) ||
+      post.content.toLowerCase().includes(query.toLowerCase()) ||
+      (post.category_name && post.category_name.toLowerCase().includes(query.toLowerCase()))
+    );
+    setPosts(filtered);
   };
 
   const fetchPosts = async (categoryId) => {
@@ -147,6 +179,23 @@ const Forums = () => {
       </div>
       <p className="subtitle">Join discussions and get answers from researchers</p>
 
+      <div className="search-bar">
+        <input
+          type="text"
+          placeholder="Search posts by title, content, or category..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && filterPosts(searchQuery)}
+        />
+        <button onClick={() => filterPosts(searchQuery)} className="primary-button">Search</button>
+        {searchQuery && (
+          <button onClick={() => {
+            setSearchQuery('');
+            setPosts(allPosts);
+          }} className="secondary-button">Clear</button>
+        )}
+      </div>
+
       {showPostForm && (
         <div className="modal-overlay" onClick={() => setShowPostForm(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -195,53 +244,37 @@ const Forums = () => {
         </div>
       )}
 
-      {categories.length === 0 ? (
-        <div className="empty-state">
-          <p>No forum categories available yet. Please check back later.</p>
-        </div>
-      ) : (
-        <div className="categories-grid">
-          {categories.map((category) => (
-            <div
-              key={category.id}
-              className="category-card"
-              onClick={() => setSelectedCategory(category.id)}
-            >
-              <h3>{category.name}</h3>
-              <p>{category.description || 'No description'}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {selectedCategory && (
-        <div className="posts-section">
-          <h2>Posts</h2>
-          {loading ? (
-            <p>Loading...</p>
-          ) : (
-            <div className="posts-list">
-              {posts.map((post) => (
-                <div
-                  key={post.id}
-                  className="post-card"
-                  onClick={() => fetchPostDetails(post.id)}
-                >
-                  <h3>{post.title}</h3>
-                  <p className="post-meta">
-                    {new Date(post.created_at).toLocaleDateString()} |{' '}
-                    {post.reply_count || 0} replies
-                  </p>
-                  <p className="post-preview">{post.content.substring(0, 150)}...</p>
+      <div className="posts-section">
+        <h2>All Posts</h2>
+        {loading ? (
+          <p>Loading...</p>
+        ) : (
+          <div className="posts-list">
+            {posts.map((post) => (
+              <div
+                key={post.id}
+                className="post-card"
+                onClick={() => fetchPostDetails(post.id)}
+              >
+                <div className="post-header">
+                  <span className="post-category-badge">{post.category_name}</span>
                 </div>
-              ))}
-              {posts.length === 0 && (
-                <p className="empty-state">No posts in this category yet.</p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+                <h3>{post.title}</h3>
+                <p className="post-meta">
+                  {new Date(post.created_at).toLocaleDateString()} |{' '}
+                  {post.reply_count || 0} replies
+                </p>
+                <p className="post-preview">{post.content.substring(0, 150)}...</p>
+              </div>
+            ))}
+            {posts.length === 0 && !loading && (
+              <p className="empty-state">
+                {searchQuery ? 'No posts found matching your search.' : 'No posts available yet.'}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

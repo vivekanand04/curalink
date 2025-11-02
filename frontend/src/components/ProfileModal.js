@@ -42,6 +42,7 @@ const ProfileModal = ({ isOpen, onClose, userType, onProfileUpdate }) => {
   }, [isOpen, userType]);
 
   const fetchProfile = async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem('token');
       const endpoint = userType === 'patient' 
@@ -136,6 +137,8 @@ const ProfileModal = ({ isOpen, onClose, userType, onProfileUpdate }) => {
       } else {
         toast.error('Failed to load profile');
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -270,7 +273,11 @@ const ProfileModal = ({ isOpen, onClose, userType, onProfileUpdate }) => {
         </div>
         
         <div className="profile-modal-body">
-          {!profile && !editing ? (
+          {loading ? (
+            <div className="profile-loading-state">
+              <p>Loading the profile, wait for response...</p>
+            </div>
+          ) : !profile && !editing ? (
             <div className="profile-empty-state">
               <p>Profile not completed yet.</p>
               <p className="profile-empty-hint">
@@ -451,84 +458,84 @@ const ProfileModal = ({ isOpen, onClose, userType, onProfileUpdate }) => {
             <div className="profile-details">
               {userType === 'patient' ? (
                 <>
-                  <div className="profile-field">
-                    <label>Name</label>
-                    <div className="profile-value">{profile.name || 'Not set'}</div>
+                  <div className="profile-field profile-field-inline">
+                    <label>Email:</label>
+                    <span className="profile-value">{user?.email || 'Not set'}</span>
                   </div>
-                  <div className="profile-field">
-                    <label>Email</label>
-                    <div className="profile-value">{user?.email || 'Not set'}</div>
+                  <div className="profile-field profile-field-inline">
+                    <label>Name:</label>
+                    <span className="profile-value">{profile.name || 'Not set'}</span>
                   </div>
-                  <div className="profile-field">
-                    <label>Age</label>
-                    <div className="profile-value">{profile.age || 'Not set'}</div>
+                  <div className="profile-field profile-field-inline">
+                    <label>Age:</label>
+                    <span className="profile-value">{profile.age || 'Not set'}</span>
                   </div>
-                  <div className="profile-field">
-                    <label>Conditions</label>
-                    <div className="profile-value">
+                  <div className="profile-field profile-field-inline">
+                    <label>Conditions:</label>
+                    <span className="profile-value">
                       {profile.conditions && Array.isArray(profile.conditions) 
                         ? profile.conditions.join(', ') 
                         : 'None'}
-                    </div>
+                    </span>
                   </div>
-                  <div className="profile-field">
-                    <label>Location</label>
-                    <div className="profile-value">
+                  <div className="profile-field profile-field-inline">
+                    <label>Location:</label>
+                    <span className="profile-value">
                       {profile.location_city || profile.location_country 
                         ? `${profile.location_city || ''}${profile.location_city && profile.location_country ? ', ' : ''}${profile.location_country || ''}`
                         : 'Not set'}
-                    </div>
+                    </span>
                   </div>
-                  <div className="profile-field">
-                    <label>Symptoms</label>
-                    <div className="profile-value">{profile.symptoms || 'Not set'}</div>
+                  <div className="profile-field profile-field-inline">
+                    <label>Symptoms:</label>
+                    <span className="profile-value">{profile.symptoms || 'Not set'}</span>
                   </div>
-                  <div className="profile-field">
-                    <label>Account Type</label>
-                    <div className="profile-value">Patient/Caregiver</div>
+                  <div className="profile-field profile-field-inline">
+                    <label>Account Type:</label>
+                    <span className="profile-value">Patient/Caregiver</span>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="profile-field">
-                    <label>Name</label>
-                    <div className="profile-value">{profile.name || 'Not set'}</div>
+                  <div className="profile-field profile-field-inline">
+                    <label>Email:</label>
+                    <span className="profile-value">{user?.email || 'Not set'}</span>
                   </div>
-                  <div className="profile-field">
-                    <label>Email</label>
-                    <div className="profile-value">{user?.email || 'Not set'}</div>
+                  <div className="profile-field profile-field-inline">
+                    <label>Name:</label>
+                    <span className="profile-value">{profile.name || 'Not set'}</span>
                   </div>
-                  <div className="profile-field">
-                    <label>Specialties</label>
-                    <div className="profile-value">
+                  <div className="profile-field profile-field-inline">
+                    <label>Specialties:</label>
+                    <span className="profile-value">
                       {profile.specialties && Array.isArray(profile.specialties)
                         ? profile.specialties.join(', ')
                         : 'None'}
-                    </div>
+                    </span>
                   </div>
-                  <div className="profile-field">
-                    <label>Research Interests</label>
-                    <div className="profile-value">
+                  <div className="profile-field profile-field-inline">
+                    <label>Research Interests:</label>
+                    <span className="profile-value">
                       {profile.research_interests && Array.isArray(profile.research_interests)
                         ? profile.research_interests.join(', ')
                         : 'None'}
-                    </div>
+                    </span>
                   </div>
-                  <div className="profile-field">
-                    <label>ORCID ID</label>
-                    <div className="profile-value">{profile.orcid_id || 'Not set'}</div>
+                  <div className="profile-field profile-field-inline">
+                    <label>ORCID ID:</label>
+                    <span className="profile-value">{profile.orcid_id || 'Not set'}</span>
                   </div>
-                  <div className="profile-field">
-                    <label>ResearchGate ID</label>
-                    <div className="profile-value">{profile.researchgate_id || 'Not set'}</div>
+                  <div className="profile-field profile-field-inline">
+                    <label>ResearchGate ID:</label>
+                    <span className="profile-value">{profile.researchgate_id || 'Not set'}</span>
                   </div>
-                  <div className="profile-field">
-                    <label>Available for Meetings</label>
-                    <div className="profile-value">{profile.availability_for_meetings ? 'Yes' : 'No'}</div>
+                  <div className="profile-field profile-field-inline">
+                    <label>Available for Meetings:</label>
+                    <span className="profile-value">{profile.availability_for_meetings ? 'Yes' : 'No'}</span>
                   </div>
-                  <div className="profile-field">
-                    <label>Account Type</label>
-                    <div className="profile-value">Researcher</div>
+                  <div className="profile-field profile-field-inline">
+                    <label>Account Type:</label>
+                    <span className="profile-value">Researcher</span>
                   </div>
                 </>
               )}

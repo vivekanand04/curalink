@@ -1576,6 +1576,20 @@
   background: #e9ecef;
 }
 
+.post-header {
+  margin-bottom: 12px;
+}
+
+.post-category-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #e0e7ff;
+  color: #3730a3;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
 .post-card h3 {
   color: #333;
   margin-bottom: 8px;
@@ -1759,6 +1773,23 @@
   gap: 8px;
 }
 
+.profile-field-inline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.profile-field-inline label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1a1a1a;
+  min-width: 150px;
+  flex-shrink: 0;
+}
+
 .profile-field label {
   font-weight: 600;
   font-size: 0.9rem;
@@ -1770,8 +1801,22 @@
 .profile-value {
   color: #666;
   font-size: 1rem;
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
+}
+
+.profile-field-inline .profile-value {
+  padding: 0;
+  border-bottom: none;
+  flex: 1;
+}
+
+.profile-loading-state {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.profile-loading-state p {
+  color: #666;
+  font-size: 1rem;
 }
 
 .profile-edit-form {

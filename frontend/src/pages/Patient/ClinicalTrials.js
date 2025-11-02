@@ -25,20 +25,7 @@ const ClinicalTrials = () => {
         'Authorization': `Bearer ${token}`
       };
       
-      // First try to get personalized trials
-      try {
-        const personalizedResponse = await axios.get(`${API_URL}/clinical-trials/personalized`, { headers });
-        if (personalizedResponse.data && personalizedResponse.data.length > 0) {
-          setTrials(personalizedResponse.data);
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        // If personalized fails or returns empty, fetch all trials
-        console.log('No personalized trials, fetching all trials');
-      }
-      
-      // Fallback to all trials if personalized returns empty
+      // Fetch all trials initially
       const response = await axios.get(`${API_URL}/clinical-trials`, { headers });
       setTrials(response.data);
     } catch (error) {
