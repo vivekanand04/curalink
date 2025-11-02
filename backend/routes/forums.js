@@ -150,5 +150,31 @@ router.post('/posts/:postId/replies', authenticate, authorize('researcher'), asy
   }
 });
 
+// Get recent forum posts (for dashboard)
+router.get('/recent-posts', authenticate, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 3;
+    const result = await query(
+      `SELECT fp.*, 
+              fc.name as category_name,
+              u.user_type,
+              (SELECT COUNT(*) FROM forum_replies WHERE post_id = fp.id) as reply_count,
+              COALESCE(rp.name, pp.name) as author_name
+       FROM forum_posts fp
+       JOIN forum_categories fc ON fp.category_id = fc.id
+       JOIN users u ON fp.user_id = u.id
+       LEFT JOIN researcher_profiles rp ON u.id = rp.user_id AND u.user_type = 'researcher'
+       LEFT JOIN patient_profiles pp ON u.id = pp.user_id AND u.user_type = 'patient'
+       ORDER BY fp.created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;
 

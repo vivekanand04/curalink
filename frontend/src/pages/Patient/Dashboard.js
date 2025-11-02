@@ -25,15 +25,58 @@ const PatientDashboard = () => {
   const [publications, setPublications] = useState([]);
   const [experts, setExperts] = useState([]);
   const [loadingData, setLoadingData] = useState(false);
+  const [stats, setStats] = useState({
+    experts: 0,
+    clinicalTrials: 0,
+    publications: 0,
+    discussions: 0
+  });
+  const [recentPosts, setRecentPosts] = useState([]);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchProfile();
     if (activeTab === 'dashboard') {
-      fetchPersonalizedData();
+      fetchDashboardData();
     }
   }, [activeTab]);
+
+  const fetchDashboardData = async () => {
+    await Promise.all([
+      fetchPersonalizedData(),
+      fetchStats(),
+      fetchRecentPosts()
+    ]);
+  };
+
+  const fetchStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/dashboard/stats`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setStats(response.data);
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
+  const fetchRecentPosts = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/forums/recent-posts?limit=3`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setRecentPosts(response.data || []);
+    } catch (error) {
+      console.error('Error fetching recent posts:', error);
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -293,8 +336,184 @@ const PatientDashboard = () => {
         <div className={`dashboard-content ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         {activeTab === 'dashboard' && (
           <div className="dashboard-main">
-            <h1>Welcome back, {profile?.name || 'Patient'}!</h1>
-            <p className="subtitle">Here are your personalized recommendations</p>
+            {/* Banner Section */}
+            <div className="dashboard-banner-wrapper">
+              <div className="dashboard-banner">
+              <div className="banner-welcome-badge">
+                <span className="banner-welcome-dot"></span>
+                Welcome back, {profile?.name?.split(' ')[0] || 'Patient'}!
+              </div>
+              <h1 className="banner-heading">Your Research Hub</h1>
+              <h2 className="banner-accent">Awaits</h2>
+              <p className="banner-description">
+                Connect with leading researchers, discover clinical trials, and access simplified medical publications—all in one platform.
+              </p>
+            </div>
+            </div>
+
+            {/* Statistics Cards */}
+            <div className="stats-grid">
+              <div className="stat-card stat-card-purple">
+                <div className="stat-number">{stats.experts}</div>
+                <div className="stat-label">Expert Researchers</div>
+              </div>
+              <div className="stat-card stat-card-green">
+                <div className="stat-number">{stats.clinicalTrials}</div>
+                <div className="stat-label">Clinical Trials</div>
+              </div>
+              <div className="stat-card stat-card-blue">
+                <div className="stat-number">{stats.publications}</div>
+                <div className="stat-label">Publications</div>
+              </div>
+              <div className="stat-card stat-card-red">
+                <div className="stat-number">{stats.discussions}</div>
+                <div className="stat-label">Discussions</div>
+              </div>
+            </div>
+
+            {/* How It Works Section */}
+            <div className="how-it-works-section">
+              <h2 className="section-title">How It Works</h2>
+              <p className="section-subtitle">Get started in minutes and join a community advancing health research.</p>
+              <div className="how-it-works-content">
+                <div className="how-it-works-card">
+                  <div className="how-it-works-icon purple-bg">
+                    <span className="icon-emoji">❤️</span>
+                  </div>
+                  <div className="how-it-works-header">
+                    <h3>For Patients & Caregivers</h3>
+                  </div>
+                  <div className="how-it-works-steps">
+                    <div className="step">
+                      <div className="step-number purple-bg">1</div>
+                      <div className="step-content">
+                        <div className="step-title">Create your profile</div>
+                        <div className="step-description">Share your health interests and conditions</div>
+                      </div>
+                    </div>
+                    <div className="step">
+                      <div className="step-number purple-bg">2</div>
+                      <div className="step-content">
+                        <div className="step-title">Get personalized content</div>
+                        <div className="step-description">Receive relevant trials, publications, and expert recommendations</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="how-it-works-card">
+                  <div className="how-it-works-icon teal-bg">
+                    <span className="icon-emoji">🔬</span>
+                  </div>
+                  <div className="how-it-works-header">
+                    <h3>For Researchers</h3>
+                  </div>
+                  <div className="how-it-works-steps">
+                    <div className="step">
+                      <div className="step-number teal-bg">1</div>
+                      <div className="step-content">
+                        <div className="step-title">Set up your profile</div>
+                        <div className="step-description">Add specialties, research interests, and credentials</div>
+                      </div>
+                    </div>
+                    <div className="step">
+                      <div className="step-number teal-bg">2</div>
+                      <div className="step-content">
+                        <div className="step-title">Find collaborators</div>
+                        <div className="step-description">Connect with fellow researchers and potential study participants</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Everything You Need Section */}
+            <div className="everything-section">
+              <h2 className="section-title">Everything You Need</h2>
+              <p className="section-subtitle">Powerful tools to navigate the world of medical research</p>
+              <div className="feature-cards-grid">
+                <div className="feature-card">
+                  <div className="feature-icon purple-bg">
+                    <span className="icon-emoji">👥</span>
+                  </div>
+                  <h3 className="feature-title">Find Experts</h3>
+                  <p className="feature-description">Connect with leading researchers and specialists in your field of interest</p>
+                  <button className="feature-link" onClick={() => setActiveTab('experts')}>
+                    Explore →
+                  </button>
+                </div>
+                <div className="feature-card">
+                  <div className="feature-icon teal-bg">
+                    <span className="icon-emoji">🔬</span>
+                  </div>
+                  <h3 className="feature-title">Clinical Trials</h3>
+                  <p className="feature-description">Discover ongoing clinical trials and research opportunities</p>
+                  <button className="feature-link" onClick={() => setActiveTab('trials')}>
+                    Explore →
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Publications and Forums Cards */}
+            <div className="additional-features-grid">
+              <div className="feature-card">
+                <div className="feature-icon red-bg">
+                  <span className="icon-emoji">📄</span>
+                </div>
+                <h3 className="feature-title">Research Publications</h3>
+                <p className="feature-description">Access simplified summaries of the latest medical research</p>
+                <button className="feature-link" onClick={() => setActiveTab('publications')}>
+                  Explore →
+                </button>
+              </div>
+              <div className="feature-card">
+                <div className="feature-icon purple-bg">
+                  <span className="icon-emoji">💬</span>
+                </div>
+                <h3 className="feature-title">Forums</h3>
+                <p className="feature-description">Join conversations between Patient/Caregivers and researchers</p>
+                <button className="feature-link" onClick={() => setActiveTab('forums')}>
+                  Explore →
+                </button>
+              </div>
+            </div>
+
+            {/* Recent Discussions Section */}
+            <div className="recent-discussions-section">
+              <div className="section-header">
+                <div className="section-icon purple-bg">
+                  <span className="icon-emoji">📊</span>
+                </div>
+                <h2 className="section-title">Recent Discussions</h2>
+                <button className="view-all-link" onClick={() => setActiveTab('forums')}>
+                  View All →
+                </button>
+              </div>
+              <div className="discussions-list">
+                {recentPosts.length > 0 ? (
+                  recentPosts.map((post) => (
+                    <div key={post.id} className="discussion-item" onClick={() => {
+                      setActiveTab('forums');
+                      // You might want to navigate to the specific post here
+                    }}>
+                      <div className="discussion-tags">
+                        <span className="discussion-tag">{post.category_name}</span>
+                      </div>
+                      <div className="discussion-meta">
+                        <span>by {post.author_name || 'User'}</span>
+                        <span>·</span>
+                        <span>{post.reply_count || 0} replies</span>
+                      </div>
+                      <h3 className="discussion-title">{post.title}</h3>
+                      <p className="discussion-preview">{post.content?.substring(0, 200)}...</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="empty-state">No recent discussions available</p>
+                )}
+              </div>
+            </div>
 
             <div className="dashboard-sections">
               <section className="dashboard-section">

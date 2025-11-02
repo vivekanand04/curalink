@@ -26,6 +26,7 @@ app.use('/api/experts', require('./routes/experts'));
 app.use('/api/collaborators', require('./routes/collaborators'));
 app.use('/api/forums', require('./routes/forums'));
 app.use('/api/favorites', require('./routes/favorites'));
+app.use('/api/dashboard', require('./routes/dashboard'));
 
 // Health check
 app.get('/api/health', (req, res) => {
