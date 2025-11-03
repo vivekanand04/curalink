@@ -12,6 +12,7 @@ const Favorites = () => {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [favoriteDetails, setFavoriteDetails] = useState({});
   const [expandedAISummaries, setExpandedAISummaries] = useState({});
+  const [selectedProfile, setSelectedProfile] = useState(null);
 
   useEffect(() => {
     fetchFavorites();
@@ -199,37 +200,49 @@ const Favorites = () => {
               );
             }
             
-            // Collaborator Card - matching dashboard design
+            // Collaborator Card - match Collaborators grid visual; two hyper links at bottom
             if (details.type === 'collaborator' && details.data) {
+              const collab = details.data;
+              const universities = [
+                'Stanford University','Harvard University','MIT','University of Oxford','University of Cambridge','Johns Hopkins University','UC Berkeley','UCLA','Imperial College London','Karolinska Institute'
+              ];
+              const getUniversityForId = (id) => {
+                const n = parseInt(id, 10);
+                if (Number.isNaN(n)) return universities[0];
+                return universities[Math.abs(n) % universities.length];
+              };
+              const university = getUniversityForId(collab.user_id);
+              const pubs = collab.publications
+                ? (Array.isArray(collab.publications) ? collab.publications : JSON.parse(collab.publications || '[]'))
+                : [];
               return (
-                <div key={favorite.id} className="card modern-card expert-card">
-                  <div className="card-favorite-icon" onClick={() => handleRemoveFavorite('collaborator', favorite.item_id)}>
-                    <span className="star-icon star-filled">★</span>
-                  </div>
-                  <h3 className="card-title" style={{ color: '#34A853', fontWeight: 700 }}>{details.data.name}</h3>
-                  <p className="card-affiliation">
-                    {details.data.specialties && details.data.specialties.length > 0 
-                      ? `${details.data.specialties[0]}${details.data.specialties.length > 1 ? `, ${details.data.specialties[1]}` : ''}`
-                      : 'Researcher'}
-                  </p>
-                  {details.data.research_interests && details.data.research_interests.length > 0 && (
-                    <>
-                      <p className="card-section-label">Research Interests:</p>
-                      <div className="interests-tags">
-                        {details.data.research_interests.slice(0, 3).map((interest, idx) => (
-                          <span key={idx} className="interest-tag">{interest}</span>
-                        ))}
+                <div key={favorite.id} className="collab-card">
+                  <div className="collab-card-main">
+                    <div className="collab-card-content">
+                      <h3 className="collab-card-title">{collab.name}</h3>
+                      <div className="collab-card-subtitle">
+                        {(collab.specialties && collab.specialties.length > 0) ? `${collab.specialties[0]} • ${university}` : `Researcher • ${university}`}
                       </div>
-                    </>
-                  )}
-                  <div className="card-actions-buttons">
+                      {(collab.research_interests && collab.research_interests.length > 0) && (
+                        <div className="collab-card-tags">
+                          {collab.research_interests.slice(0, 2).map((interest, idx) => (
+                            <span key={idx} className="collab-chip">{interest}</span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="collab-card-meta">{pubs.length} recent publications</div>
+                    </div>
                     <button
+                      className="collab-fav active"
                       onClick={() => handleRemoveFavorite('collaborator', favorite.item_id)}
-                      className="danger-button"
-                      style={{ marginTop: '10px' }}
+                      aria-label="Remove favorite"
                     >
-                      Remove from Favorites
+                      ★
                     </button>
+                  </div>
+                  <div className="collab-card-actions" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                    <span className="action-link" onClick={() => setSelectedProfile(collab)}>View Profile</span>
+                    <span className="action-link" style={{ textAlign: 'right', color: '#dc3545' }} onClick={() => handleRemoveFavorite('collaborator', favorite.item_id)}>Remove from Favorites</span>
                   </div>
                 </div>
               );
@@ -276,6 +289,68 @@ const Favorites = () => {
         <p className="empty-state">
           No favorites found. Start saving items to see them here.
         </p>
+      )}
+
+      {/* Profile Modal for favorites */}
+      {selectedProfile && (
+        <div className="modal-overlay" onClick={() => setSelectedProfile(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{selectedProfile.name}</h2>
+              <button className="modal-close" onClick={() => setSelectedProfile(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: '10px' }}>
+                {(selectedProfile.specialties && selectedProfile.specialties.length > 0)
+                  ? selectedProfile.specialties.join(', ')
+                  : 'Researcher'}
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '10px 0' }}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#6b7280' }}>
+                  {(selectedProfile.name || 'R')[0]}
+                </div>
+              </div>
+              {(() => {
+                const universities = [
+                  'Stanford University','Harvard University','MIT','University of Oxford','University of Cambridge','Johns Hopkins University','UC Berkeley','UCLA','Imperial College London','Karolinska Institute'
+                ];
+                const getUniversityForId = (id) => {
+                  const n = parseInt(id, 10);
+                  if (Number.isNaN(n)) return universities[0];
+                  return universities[Math.abs(n) % universities.length];
+                };
+                return (
+                  <p style={{ color: '#6b7280', marginTop: 0 }}>{getUniversityForId(selectedProfile.user_id)}</p>
+                );
+              })()}
+              {selectedProfile.research_interests && selectedProfile.research_interests.length > 0 && (
+                <div style={{ margin: '12px 0', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {selectedProfile.research_interests.slice(0, 5).map((i, idx) => (
+                    <span key={idx} className="collab-chip">{i}</span>
+                  ))}
+                </div>
+              )}
+              {(() => {
+                const pubs = selectedProfile.publications
+                  ? (Array.isArray(selectedProfile.publications)
+                    ? selectedProfile.publications
+                    : JSON.parse(selectedProfile.publications || '[]'))
+                  : [];
+                if (pubs.length === 0) return <p className="empty-state">No publications available.</p>;
+                return (
+                  <div>
+                    <h3>Recent Publications</h3>
+                    <ul style={{ paddingLeft: '18px' }}>
+                      {pubs.slice(0, 5).map((p, i) => (
+                        <li key={i} style={{ marginBottom: '8px' }}>{p.title || 'Untitled Publication'}</li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

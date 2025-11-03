@@ -19,10 +19,14 @@ const Collaborators = () => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState(null);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [favorites, setFavorites] = useState({});
 
   useEffect(() => {
     fetchConnections();
     fetchCollaborators();
+    fetchFavorites();
     if (activeTab === 'messages') {
       fetchConversations();
     }
@@ -71,6 +75,17 @@ const Collaborators = () => {
     } catch (error) {
       console.error('Error fetching connections:', error);
     }
+  };
+
+  const findConnection = (collaboratorId) => {
+    const collabId = parseInt(collaboratorId);
+    const me = parseInt(user?.id);
+    return connections.find(conn => {
+      const requesterId = parseInt(conn.requester_id);
+      const receiverId = parseInt(conn.receiver_id);
+      const match = (requesterId === me && receiverId === collabId) || (receiverId === me && requesterId === collabId);
+      return match && conn.status !== 'rejected';
+    });
   };
 
   const handleSearch = async () => {
@@ -155,6 +170,52 @@ const Collaborators = () => {
     }
   };
 
+  const fetchFavorites = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/favorites`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const map = {};
+      response.data.forEach(fav => {
+        if (fav.item_type === 'collaborator') {
+          map[`collaborator_${fav.item_id}`] = true;
+        }
+      });
+      setFavorites(map);
+    } catch (error) {
+      // non-blocking
+    }
+  };
+
+  const handleToggleFavorite = async (collaboratorId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const key = `collaborator_${collaboratorId}`;
+      if (favorites[key]) {
+        await axios.delete(`${API_URL}/favorites/collaborator/${collaboratorId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        setFavorites(prev => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        toast.success('Removed from favorites');
+      } else {
+        await axios.post(`${API_URL}/favorites`, { itemType: 'collaborator', itemId: collaboratorId }, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        setFavorites(prev => ({ ...prev, [key]: true }));
+        toast.success('Added to favorites');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update favorites');
+    }
+  };
+
   const fetchMessages = async (collaboratorId) => {
     try {
       const token = localStorage.getItem('token');
@@ -194,12 +255,58 @@ const Collaborators = () => {
   };
 
   const getConnectionStatus = (collaboratorId) => {
-    const connection = connections.find(
-      (conn) =>
-        (conn.requester_id === collaboratorId || conn.receiver_id === collaboratorId) &&
-        conn.status !== 'rejected'
-    );
-    return connection?.status || null;
+    const conn = findConnection(collaboratorId);
+    if (!conn) return null;
+    const isReceiver = parseInt(conn.receiver_id) === parseInt(user?.id);
+    if (conn.status === 'pending') {
+      return isReceiver ? 'incoming_pending' : 'outgoing_pending';
+    }
+    return conn.status;
+  };
+
+  const handleAcceptRequest = async (collaboratorId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const conn = findConnection(collaboratorId);
+      if (!conn) return;
+      await axios.put(`${API_URL}/collaborators/connections/${conn.id}`, { status: 'accepted' }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      toast.success('Connection accepted');
+      await fetchConnections();
+    } catch (error) {
+      toast.error('Failed to accept request');
+    }
+  };
+
+  const handleCancelRequest = async (collaboratorId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const conn = findConnection(collaboratorId);
+      if (!conn) return;
+      await axios.put(`${API_URL}/collaborators/connections/${conn.id}`, { status: 'rejected' }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      toast.success('Request canceled');
+      await fetchConnections();
+    } catch (error) {
+      toast.error('Failed to cancel request');
+    }
+  };
+
+  const openChat = async (collab) => {
+    setSelectedChat({ collaborator_id: collab.user_id, collaborator_name: collab.name });
+    await fetchMessages(collab.user_id);
+    setShowChatModal(true);
+  };
+  
+  const handleChatClick = async (collab) => {
+    const status = getConnectionStatus(collab.user_id);
+    if (status === 'accepted') {
+      await openChat(collab);
+    } else {
+      toast.info('Connect first');
+    }
   };
 
   return (
@@ -273,100 +380,74 @@ const Collaborators = () => {
             <div className="cards-grid">
               {collaborators.map((collaborator) => {
                 const connectionStatus = getConnectionStatus(collaborator.user_id);
+                const universities = [
+                  'Stanford University',
+                  'Harvard University',
+                  'MIT',
+                  'University of Oxford',
+                  'University of Cambridge',
+                  'Johns Hopkins University',
+                  'UC Berkeley',
+                  'UCLA',
+                  'Imperial College London',
+                  'Karolinska Institute'
+                ];
+                const getUniversityForId = (id) => {
+                  const n = parseInt(id, 10);
+                  if (Number.isNaN(n)) return universities[0];
+                  return universities[Math.abs(n) % universities.length];
+                };
+                const university = getUniversityForId(collaborator.user_id);
+                const pubs = collaborator.publications
+                  ? (Array.isArray(collaborator.publications)
+                    ? collaborator.publications
+                    : JSON.parse(collaborator.publications || '[]'))
+                  : [];
+                const recentCount = pubs.length;
                 return (
-                  <div key={collaborator.user_id} className="card">
-                    <h3>{collaborator.name}</h3>
-                    {collaborator.specialties && collaborator.specialties.length > 0 && (
-                      <p className="card-meta">
-                        <strong>Specialties:</strong> {collaborator.specialties.join(', ')}
-                      </p>
-                    )}
-                    {collaborator.research_interests && collaborator.research_interests.length > 0 && (
-                      <p className="card-meta">
-                        <strong>Research Interests:</strong> {collaborator.research_interests.join(', ')}
-                      </p>
-                    )}
-                    {(() => {
-                      const publications = collaborator.publications 
-                        ? (Array.isArray(collaborator.publications) 
-                            ? collaborator.publications 
-                            : JSON.parse(collaborator.publications || '[]'))
-                        : [];
-                      const recentPubs = publications.slice(0, 3);
-                      return publications.length > 0 && (
-                        <div>
-                          <p className="card-meta">
-                            <strong>Publications:</strong> {publications.length} publication{publications.length !== 1 ? 's' : ''}
-                          </p>
-                          {recentPubs.length > 0 && (
-                            <div style={{ marginTop: '8px', fontSize: '0.9em' }}>
-                              <strong>Recent:</strong>
-                              <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
-                                {recentPubs.map((pub, idx) => (
-                                  <li key={idx} style={{ marginBottom: '4px' }}>
-                                    {pub.title || 'Untitled Publication'}
-                                    {pub.ai_summary && (
-                                      <span style={{ display: 'block', fontSize: '0.85em', color: '#666', marginTop: '2px' }}>
-                                        {pub.ai_summary.substring(0, 100)}...
-                                      </span>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
+                  <div key={collaborator.user_id} className="collab-card">
+                    <div className="collab-card-main">
+                      <div className="collab-card-content">
+                        <h3 className="collab-card-title">{collaborator.name}</h3>
+                        <div className="collab-card-subtitle">
+                          {(collaborator.specialties && collaborator.specialties.length > 0)
+                            ? `${collaborator.specialties[0]} • ${university}`
+                            : `Researcher • ${university}`}
                         </div>
-                      );
-                    })()}
-                    {collaborator.email && (
-                      <p className="card-meta">
-                        <strong>Email:</strong> {collaborator.email}
-                      </p>
-                    )}
-                    <div className="card-actions">
-                      {connectionStatus === null && (
-                        <>
-                          <button
-                            onClick={() => handleConnect(collaborator.user_id)}
-                            className="primary-button"
-                          >
-                            Connect
-                          </button>
-                          <button
-                            onClick={() => handleAddFavorite(collaborator.user_id)}
-                            className="secondary-button"
-                            style={{ marginLeft: '10px' }}
-                          >
-                            Add to Favorites
-                          </button>
-                        </>
+                        {(collaborator.research_interests && collaborator.research_interests.length > 0) && (
+                          <div className="collab-card-tags">
+                            {collaborator.research_interests.slice(0, 2).map((interest, idx) => (
+                              <span key={idx} className="collab-chip">{interest}</span>
+                            ))}
+                          </div>
+                        )}
+                        <div
+                          className="collab-card-meta clickable"
+                          onClick={() => setSelectedProfile(collaborator)}
+                        >
+                          {recentCount} recent publications
+                        </div>
+                      </div>
+                       <button
+                         className={`collab-fav ${favorites[`collaborator_${collaborator.user_id}`] ? 'active' : ''}`}
+                         onClick={() => handleToggleFavorite(collaborator.user_id)}
+                         aria-label="Toggle favorite"
+                       >
+                         {favorites[`collaborator_${collaborator.user_id}`] ? '★' : '☆'}
+                       </button>
+                    </div>
+                    <div className="collab-card-actions">
+                      {connectionStatus === 'accepted' ? (
+                        <button className="collab-button-primary" disabled>Connected</button>
+                      ) : connectionStatus === 'incoming_pending' ? (
+                        <button className="collab-button-primary" onClick={() => handleAcceptRequest(collaborator.user_id)}>Accept Request</button>
+                      ) : connectionStatus === 'outgoing_pending' ? (
+                        <button className="collab-button-primary" onClick={() => handleCancelRequest(collaborator.user_id)}>Pending Request</button>
+                      ) : (
+                        <button className="collab-button-primary" onClick={() => handleConnect(collaborator.user_id)}>Connect</button>
                       )}
-                      {connectionStatus === 'pending' && (
-                        <span className="status-badge">Pending</span>
-                      )}
-                      {connectionStatus === 'accepted' && (
-                        <>
-                          <span className="status-badge accepted">Connected</span>
-                          <button
-                            onClick={() => {
-                              setActiveTab('messages');
-                              setSelectedChat({ collaborator_id: collaborator.user_id, collaborator_name: collaborator.name });
-                              fetchConversations();
-                            }}
-                            className="primary-button"
-                            style={{ marginLeft: '10px' }}
-                          >
-                            Chat
-                          </button>
-                          <button
-                            onClick={() => handleAddFavorite(collaborator.user_id)}
-                            className="secondary-button"
-                            style={{ marginLeft: '10px' }}
-                          >
-                            Add to Favorites
-                          </button>
-                        </>
-                      )}
+                      <button className="collab-button-outline" type="button" onClick={() => setSelectedProfile(collaborator)}>View Profile</button>
+                      <button className="collab-button-outline" type="button" onClick={() => handleChatClick(collaborator)}>Chat</button>
                     </div>
                   </div>
                 );
@@ -558,6 +639,120 @@ const Collaborators = () => {
                 Select a conversation to start messaging
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Collaborator Profile Modal */}
+      {selectedProfile && (
+        <div className="modal-overlay" onClick={() => setSelectedProfile(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{selectedProfile.name}</h2>
+              <button className="modal-close" onClick={() => setSelectedProfile(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: '10px' }}>
+                {(selectedProfile.specialties && selectedProfile.specialties.length > 0)
+                  ? selectedProfile.specialties.join(', ')
+                  : 'Researcher'}
+              </p>
+              {/* Avatar + meta */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '10px 0' }}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#6b7280' }}>
+                  {(selectedProfile.name || 'R')[0]}
+                </div>
+                <div style={{ color: '#6b7280' }}>
+                  {selectedProfile.email && (
+                    <div style={{ fontSize: '0.9em' }}>{selectedProfile.email}</div>
+                  )}
+                </div>
+              </div>
+
+              {(() => {
+                const universities = [
+                  'Stanford University','Harvard University','MIT','University of Oxford','University of Cambridge','Johns Hopkins University','UC Berkeley','UCLA','Imperial College London','Karolinska Institute'
+                ];
+                const getUniversityForId = (id) => {
+                  const n = parseInt(id, 10);
+                  if (Number.isNaN(n)) return universities[0];
+                  return universities[Math.abs(n) % universities.length];
+                };
+                return (
+                  <p style={{ color: '#6b7280', marginTop: 0 }}>{getUniversityForId(selectedProfile.user_id)}</p>
+                );
+              })()}
+              {selectedProfile.research_interests && selectedProfile.research_interests.length > 0 && (
+                <div style={{ margin: '12px 0', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {selectedProfile.research_interests.slice(0, 5).map((i, idx) => (
+                    <span key={idx} className="collab-chip">{i}</span>
+                  ))}
+                </div>
+              )}
+              {(() => {
+                const pubs = selectedProfile.publications
+                  ? (Array.isArray(selectedProfile.publications)
+                    ? selectedProfile.publications
+                    : JSON.parse(selectedProfile.publications || '[]'))
+                  : [];
+                if (pubs.length === 0) return <p className="empty-state">No publications available.</p>;
+                return (
+                  <div>
+                    <h3>Recent Publications</h3>
+                    <ul style={{ paddingLeft: '18px' }}>
+                      {pubs.slice(0, 5).map((p, i) => (
+                        <li key={i} style={{ marginBottom: '8px' }}>{p.title || 'Untitled Publication'}</li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
+
+              {/* No confirmation actions here per requirement */}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chat Modal */}
+      {showChatModal && selectedChat && (
+        <div className="modal-overlay" onClick={() => setShowChatModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Chat with {selectedChat.collaborator_name}</h2>
+              <button className="modal-close" onClick={() => setShowChatModal(false)}>×</button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', height: '400px' }}>
+              <div style={{ flex: 1, overflowY: 'auto', paddingRight: '6px' }}>
+                {messages.length === 0 ? (
+                  <p className="empty-state">No messages yet. Start the conversation!</p>
+                ) : (
+                  messages.map((msg) => {
+                    const isSent = msg.sender_id === user?.id;
+                    return (
+                      <div key={msg.id} style={{ display: 'flex', justifyContent: isSent ? 'flex-end' : 'flex-start', marginBottom: '10px' }}>
+                        <div style={{ maxWidth: '75%', background: isSent ? '#6a34f5' : '#e9ecef', color: isSent ? '#fff' : '#000', padding: '8px 12px', borderRadius: '12px' }}>
+                          <div style={{ fontSize: '0.8em', opacity: 0.8 }}>{msg.sender_name}</div>
+                          <div>{msg.message}</div>
+                          <div style={{ fontSize: '0.75em', opacity: 0.7, marginTop: '4px' }}>{new Date(msg.created_at).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Type a message..."
+                  style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '8px' }}
+                />
+                <button className="primary-button" onClick={handleSendMessage} disabled={chatLoading || !newMessage.trim()}>Send</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -27,6 +27,53 @@ const PublicationsManage = () => {
     fetchFavorites();
   }, []);
 
+  // Ensure external publications (ORCID/ResearchGate) are synced when ORCID/ResearchGate ID is present
+  useEffect(() => {
+    syncExternalPublicationsIfNeeded();
+  }, []);
+
+  const syncExternalPublicationsIfNeeded = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+
+      // Fetch current researcher profile
+      const profileRes = await axios.get(`${API_URL}/researchers/profile`, { headers });
+      const profile = profileRes.data || {};
+
+      const hasExternalIds = !!(profile.orcid_id || profile.researchgate_id);
+      if (!hasExternalIds) return; // nothing to sync
+
+      // Check if publications already include external sources
+      const pubsRes = await axios.get(`${API_URL}/publications`, { headers });
+      const existing = Array.isArray(pubsRes.data) ? pubsRes.data : [];
+      const hasExternalPubs = existing.some(p => (p.source || '').toLowerCase() === 'orcid' || (p.source || '').toLowerCase() === 'researchgate');
+      if (hasExternalPubs) return; // already synced
+
+      // Re-post the profile to trigger import on the backend
+      const payload = {
+        name: profile.name || '',
+        specialties: profile.specialties || [],
+        researchInterests: profile.research_interests || [],
+        orcidId: profile.orcid_id || null,
+        researchgateId: profile.researchgate_id || null,
+        availabilityForMeetings: profile.availability_for_meetings || false,
+        publications: profile.publications ? (typeof profile.publications === 'string' ? JSON.parse(profile.publications) : profile.publications) : [],
+      };
+
+      await axios.post(`${API_URL}/researchers/profile`, payload, { headers });
+
+      // Refresh list to include newly imported publications
+      await fetchPublications();
+    } catch (error) {
+      console.error('External publications sync failed:', error);
+    }
+  };
+
   const fetchFavorites = async () => {
     try {
       const token = localStorage.getItem('token');

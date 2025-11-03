@@ -3341,3 +3341,123 @@ padding-bottom: 10px;
   line-height: 1.6;
 }
 
+/* --- Collaborator Card (Researcher) --- */
+.collab-card {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.collab-card-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.collab-card-content {
+  min-width: 0;
+}
+
+.collab-card-title {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.collab-card-subtitle {
+  color: #5f6368;
+  font-size: 14px;
+}
+
+.collab-card-tags {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.collab-chip {
+  background: #f1e9ff;
+  color: #6a34f5;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.collab-card-meta {
+  margin-top: 10px;
+  color: #666;
+  font-size: 13px;
+}
+
+.collab-fav {
+  border: 1px solid #eee;
+  background: #fff;
+  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.collab-fav.active {
+  color: #f5b400;
+}
+
+.collab-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+}
+
+.collab-button-primary {
+  background: #6a34f5;
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+.collab-button-primary:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.collab-button-outline {
+  background: transparent;
+  color: #6a34f5;
+  border: 2px solid #ebddff;
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .collab-card-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+.collab-card-meta.clickable {
+  cursor: pointer;
+}
+.collab-card-meta.clickable:hover {
+  text-decoration: underline;
+}
+

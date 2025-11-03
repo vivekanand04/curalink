@@ -28,7 +28,9 @@ const ResearcherDashboard = () => {
   const [expandedAISummaries, setExpandedAISummaries] = useState({});
   const [favorites, setFavorites] = useState({});
   const [connectionPending, setConnectionPending] = useState({});
+  const [selectedCollaboratorProfile, setSelectedCollaboratorProfile] = useState(null);
   const [showConnectionConfirm, setShowConnectionConfirm] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null); // { type: 'send'|'cancel'|'accept', collaboratorId, connection }
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -193,6 +195,16 @@ const ResearcherDashboard = () => {
     }));
   };
 
+  const handleChatClickDash = (collab) => {
+    const status = getConnectionStatus(collab.user_id);
+    if (status === 'accepted') {
+      toast.info('Opening chat in Collaborators');
+      setActiveTab('collaborators');
+    } else {
+      toast.info('Connect first');
+    }
+  };
+
   const handleConnect = async (collaboratorId) => {
     try {
       const token = localStorage.getItem('token');
@@ -214,32 +226,36 @@ const ResearcherDashboard = () => {
 
   const handleConnectClick = (collaboratorId) => {
     const status = getConnectionStatus(collaboratorId);
-    if (status === null && !connectionPending[collaboratorId]) {
-      setShowConnectionConfirm(collaboratorId);
+    if (status === null) {
+      setConfirmAction({ type: 'send', collaboratorId });
+    } else if (status === 'outgoing_pending') {
+      const connection = findConnection(collaboratorId);
+      if (connection) setConfirmAction({ type: 'cancel', collaboratorId, connection });
+    } else if (status === 'incoming_pending') {
+      const connection = findConnection(collaboratorId);
+      if (connection) setConfirmAction({ type: 'accept', collaboratorId, connection });
     }
   };
 
-  const getConnectionStatus = (collaboratorId) => {
-    const currentUserId = user?.id;
-    if (!currentUserId) return null;
-    
-    // Ensure we compare numbers for accurate matching
-    const userId = parseInt(currentUserId);
+  const findConnection = (collaboratorId) => {
+    const userId = parseInt(user?.id);
     const collabId = parseInt(collaboratorId);
-    
-    const connection = connections.find(
-      (conn) => {
-        const requesterId = parseInt(conn.requester_id);
-        const receiverId = parseInt(conn.receiver_id);
-        
-        // Check if this connection is between current user and the collaborator
-        const isCurrentUserRequester = requesterId === userId && receiverId === collabId;
-        const isCurrentUserReceiver = receiverId === userId && requesterId === collabId;
-        
-        return (isCurrentUserRequester || isCurrentUserReceiver) && conn.status !== 'rejected';
-      }
-    );
-    return connection?.status || null;
+    return connections.find(conn => {
+      const requesterId = parseInt(conn.requester_id);
+      const receiverId = parseInt(conn.receiver_id);
+      const match = (requesterId === userId && receiverId === collabId) || (receiverId === userId && requesterId === collabId);
+      return match && conn.status !== 'rejected';
+    });
+  };
+
+  const getConnectionStatus = (collaboratorId) => {
+    const conn = findConnection(collaboratorId);
+    if (!conn) return null;
+    const isReceiver = parseInt(conn.receiver_id) === parseInt(user?.id);
+    if (conn.status === 'pending') {
+      return isReceiver ? 'incoming_pending' : 'outgoing_pending';
+    }
+    return conn.status;
   };
 
   const handleLogout = () => {
@@ -554,55 +570,78 @@ const ResearcherDashboard = () => {
                   {potentialCollaborators.slice(0, 2).map((collaborator) => {
                     const connectionStatus = getConnectionStatus(collaborator.user_id);
                     const isPending = connectionStatus === 'pending' || connectionPending[collaborator.user_id];
+                    const universities = [
+                      'Stanford University',
+                      'Harvard University',
+                      'MIT',
+                      'University of Oxford',
+                      'University of Cambridge',
+                      'Johns Hopkins University',
+                      'UC Berkeley',
+                      'UCLA',
+                      'Imperial College London',
+                      'Karolinska Institute'
+                    ];
+                    const getUniversityForId = (id) => {
+                      const n = parseInt(id, 10);
+                      if (Number.isNaN(n)) return universities[0];
+                      return universities[Math.abs(n) % universities.length];
+                    };
+                    const university = getUniversityForId(collaborator.user_id);
                     return (
-                      <div key={collaborator.user_id} className="card modern-card expert-card">
-                        <div className="card-favorite-icon" onClick={() => handleToggleFavorite('collaborator', collaborator.user_id)}>
-                          <span className={`star-icon ${favorites[`collaborator_${collaborator.user_id}`] ? 'star-filled' : ''}`}>
-                            {favorites[`collaborator_${collaborator.user_id}`] ? '★' : '☆'}
-                          </span>
-                        </div>
-                        <h3 className="card-title" style={{ color: '#34A853', fontWeight: 700 }}>{collaborator.name}</h3>
-                        <p className="card-affiliation">
-                          {collaborator.specialties && collaborator.specialties.length > 0 
-                            ? `${collaborator.specialties[0]}${collaborator.specialties.length > 1 ? `, ${collaborator.specialties[1]}` : ''}`
-                            : 'Researcher'}
-                        </p>
-                        {collaborator.research_interests && collaborator.research_interests.length > 0 && (
-                          <>
-                            <p className="card-section-label">Research Interests:</p>
-                            <div className="interests-tags">
-                              {collaborator.research_interests.slice(0, 3).map((interest, idx) => (
-                                <span key={idx} className="interest-tag">{interest}</span>
-                              ))}
+                      <div key={collaborator.user_id} className="collab-card">
+                        <div className="collab-card-main">
+                          <div className="collab-card-content">
+                            <h3 className="collab-card-title">{collaborator.name}</h3>
+                            <div className="collab-card-subtitle">
+                              {(collaborator.specialties && collaborator.specialties.length > 0)
+                                ? `${collaborator.specialties[0]} • ${university}`
+                                : `Researcher • ${university}`}
                             </div>
-                          </>
-                        )}
-                        <div className="card-actions-buttons">
+                            {(collaborator.research_interests && collaborator.research_interests.length > 0) && (
+                              <div className="collab-card-tags">
+                                {collaborator.research_interests.slice(0, 2).map((interest, idx) => (
+                                  <span key={idx} className="collab-chip">{interest}</span>
+                                ))}
+                              </div>
+                            )}
+                            {(() => {
+                              const pubs = collaborator.publications
+                                ? (Array.isArray(collaborator.publications)
+                                  ? collaborator.publications
+                                  : JSON.parse(collaborator.publications || '[]'))
+                                : [];
+                              const count = pubs.length;
+                              return (
+                                <div
+                                  className="collab-card-meta clickable"
+                                  onClick={() => setSelectedCollaboratorProfile(collaborator)}
+                                >
+                                  {count} recent publications
+                                </div>
+                              );
+                            })()}
+                          </div>
+                          <button
+                            className={`collab-fav ${favorites[`collaborator_${collaborator.user_id}`] ? 'active' : ''}`}
+                            onClick={() => handleToggleFavorite('collaborator', collaborator.user_id)}
+                            aria-label="Toggle favorite"
+                          >
+                            {favorites[`collaborator_${collaborator.user_id}`] ? '★' : '☆'}
+                          </button>
+                        </div>
+                        <div className="collab-card-actions">
                           {connectionStatus === 'accepted' ? (
-                            <button
-                              className="request-meeting-button"
-                              style={{ background: '#155724', cursor: 'default' }}
-                              disabled
-                            >
-                              Confirmed
-                            </button>
-                          ) : isPending || connectionStatus === 'pending' ? (
-                            <button
-                              className="request-meeting-button"
-                              style={{ background: '#856404', cursor: 'default' }}
-                              disabled
-                            >
-                              Connection Pending
-                            </button>
+                            <button className="collab-button-primary" disabled>Connected</button>
+                          ) : connectionStatus === 'incoming_pending' ? (
+                            <button className="collab-button-primary" onClick={() => handleConnectClick(collaborator.user_id)}>Accept Request</button>
+                          ) : connectionStatus === 'outgoing_pending' ? (
+                            <button className="collab-button-primary" onClick={() => handleConnectClick(collaborator.user_id)}>Pending Request</button>
                           ) : (
-                            <button
-                              onClick={() => handleConnectClick(collaborator.user_id)}
-                              className="request-meeting-button"
-                              style={{ background: '#34A853' }}
-                            >
-                              Send Connection Request
-                            </button>
+                            <button className="collab-button-primary" onClick={() => handleConnectClick(collaborator.user_id)}>Connect</button>
                           )}
+                          <button className="collab-button-outline" onClick={() => setSelectedCollaboratorProfile(collaborator)}>View Profile</button>
+                          <button className="collab-button-outline" type="button" onClick={() => handleChatClickDash(collaborator)}>Chat</button>
                         </div>
                       </div>
                     );
@@ -687,31 +726,116 @@ const ResearcherDashboard = () => {
         currentUserType="researcher"
       />
 
-      {/* Connection Confirmation Modal */}
-      {showConnectionConfirm && (
-        <div className="modal-overlay" onClick={() => setShowConnectionConfirm(null)}>
+      {/* Connection Action Modal */}
+      {confirmAction && (
+        <div className="modal-overlay" onClick={() => setConfirmAction(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Send Connection Request</h2>
-              <button className="modal-close" onClick={() => setShowConnectionConfirm(null)}>×</button>
+              <h2>{confirmAction.type === 'send' ? 'Send Connection Request' : confirmAction.type === 'cancel' ? 'Cancel Pending Request' : 'Accept Connection Request'}</h2>
+              <button className="modal-close" onClick={() => setConfirmAction(null)}>×</button>
             </div>
             <div className="modal-body">
-              <p>Are you sure you want to send a connection request to this researcher?</p>
+              <p>
+                {confirmAction.type === 'send' && 'Are you sure you want to send a connection request to this researcher?'}
+                {confirmAction.type === 'cancel' && 'Do you want to cancel your pending request?'}
+                {confirmAction.type === 'accept' && 'Do you want to accept this connection request?'}
+              </p>
               <div className="form-actions" style={{ marginTop: '20px' }}>
-                <button
-                  onClick={() => setShowConnectionConfirm(null)}
-                  className="secondary-button"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleConnect(showConnectionConfirm)}
-                  className="primary-button"
-                  style={{ background: '#34A853' }}
-                >
-                  Send Request
-                </button>
+                <button onClick={() => setConfirmAction(null)} className="secondary-button">Cancel</button>
+                {confirmAction.type === 'send' && (
+                  <button
+                    onClick={async () => { await handleConnect(confirmAction.collaboratorId); setConfirmAction(null); }}
+                    className="primary-button"
+                    style={{ background: '#34A853' }}
+                  >
+                    Send Request
+                  </button>
+                )}
+                {confirmAction.type === 'cancel' && (
+                  <button
+                    onClick={async () => { 
+                      const token = localStorage.getItem('token');
+                      await axios.put(`${API_URL}/collaborators/connections/${confirmAction.connection.id}`, { status: 'rejected' }, { headers: { 'Authorization': `Bearer ${token}` } });
+                      await fetchConnectionsOnly();
+                      setConfirmAction(null);
+                    }}
+                    className="primary-button"
+                  >
+                    Cancel Request
+                  </button>
+                )}
+                {confirmAction.type === 'accept' && (
+                  <button
+                    onClick={async () => { 
+                      const token = localStorage.getItem('token');
+                      await axios.put(`${API_URL}/collaborators/connections/${confirmAction.connection.id}`, { status: 'accepted' }, { headers: { 'Authorization': `Bearer ${token}` } });
+                      await fetchConnectionsOnly();
+                      setConfirmAction(null);
+                    }}
+                    className="primary-button"
+                    style={{ background: '#34A853' }}
+                  >
+                    Accept
+                  </button>
+                )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Collaborator Profile Modal */}
+      {selectedCollaboratorProfile && (
+        <div className="modal-overlay" onClick={() => setSelectedCollaboratorProfile(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{selectedCollaboratorProfile.name}</h2>
+              <button className="modal-close" onClick={() => setSelectedCollaboratorProfile(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: '10px' }}>
+                {(selectedCollaboratorProfile.specialties && selectedCollaboratorProfile.specialties.length > 0)
+                  ? selectedCollaboratorProfile.specialties.join(', ')
+                  : 'Researcher'}
+              </p>
+              {(() => {
+                const universities = [
+                  'Stanford University','Harvard University','MIT','University of Oxford','University of Cambridge','Johns Hopkins University','UC Berkeley','UCLA','Imperial College London','Karolinska Institute'
+                ];
+                const getUniversityForId = (id) => {
+                  const n = parseInt(id, 10);
+                  if (Number.isNaN(n)) return universities[0];
+                  return universities[Math.abs(n) % universities.length];
+                };
+                return (
+                  <p style={{ color: '#6b7280', marginTop: 0 }}>{getUniversityForId(selectedCollaboratorProfile.user_id)}</p>
+                );
+              })()}
+              {selectedCollaboratorProfile.research_interests && selectedCollaboratorProfile.research_interests.length > 0 && (
+                <div style={{ margin: '12px 0', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {selectedCollaboratorProfile.research_interests.slice(0, 5).map((i, idx) => (
+                    <span key={idx} className="collab-chip">{i}</span>
+                  ))}
+                </div>
+              )}
+              {(() => {
+                const pubs = selectedCollaboratorProfile.publications
+                  ? (Array.isArray(selectedCollaboratorProfile.publications)
+                    ? selectedCollaboratorProfile.publications
+                    : JSON.parse(selectedCollaboratorProfile.publications || '[]'))
+                  : [];
+                if (pubs.length === 0) return <p className="empty-state">No publications available.</p>;
+                return (
+                  <div>
+                    <h3>Recent Publications</h3>
+                    <ul style={{ paddingLeft: '18px' }}>
+                      {pubs.slice(0, 5).map((p, i) => (
+                        <li key={i} style={{ marginBottom: '8px' }}>{p.title || 'Untitled Publication'}</li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
