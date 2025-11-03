@@ -350,7 +350,7 @@ const PatientDashboard = () => {
   }, [profileDropdownOpen]);
 
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-container patient">
       <nav className="dashboard-nav">
         <div className="nav-left">
           <button 

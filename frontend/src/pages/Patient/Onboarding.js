@@ -125,7 +125,7 @@ const PatientOnboarding = () => {
                     value={formData.currentCondition}
                     onChange={(e) => setFormData({ ...formData, currentCondition: e.target.value })}
                     onKeyPress={(e) => e.key === 'Enter' && addCondition()}
-                    placeholder="e.g., Brain Cancer, Glioma"
+                    placeholder="Describe your condition in your own words (e.g., I have pain in my lungs, I feel dizzy often)"
                   />
                   <button type="button" onClick={addCondition} className="add-button">
                     Add

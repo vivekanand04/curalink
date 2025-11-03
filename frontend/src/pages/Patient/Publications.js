@@ -95,7 +95,7 @@ const Publications = () => {
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
         />
-        <button onClick={handleSearch} className="primary-button">Search</button>
+        <button onClick={handleSearch} className="primary-button search-button">Search</button>
       </div>
 
       {loading ? (

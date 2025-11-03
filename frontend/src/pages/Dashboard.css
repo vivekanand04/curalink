@@ -3079,6 +3079,14 @@ padding-bottom: 10px;
   text-decoration: underline;
 }
 
+/* Defaults for responsive helpers */
+.filters-mobile {
+  display: none;
+}
+.ask-label-short {
+  display: none;
+}
+
 /* Reddit-Style Forum Posts */
 .posts-list-reddit,
 .discussions-list-reddit {
@@ -3459,5 +3467,68 @@ padding-bottom: 10px;
 }
 .collab-card-meta.clickable:hover {
   text-decoration: underline;
+}
+
+/* Ultra-small screens adjustments (Patient-only) */
+@media (max-width: 440px) {
+  .dashboard-container.patient .dashboard-nav {
+    padding: 12px 14px;
+    flex-wrap: nowrap;
+  }
+  .dashboard-container.patient .nav-left {
+    flex: 1;
+    gap: 12px;
+  }
+  .dashboard-container.patient .nav-user {
+    margin-left: auto;
+  }
+  .dashboard-container.patient .profile-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Replace Search text with right arrow on small screens */
+  .dashboard-container.patient .search-button {
+    position: relative;
+    width: 44px;
+    min-width: 44px;
+    padding: 10px;
+    color: transparent;
+  }
+  .dashboard-container.patient .search-button::after {
+    content: '→';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  /* Ask button: shorten label, smaller, right-aligned */
+  .dashboard-container.patient .ask-label-full { display: none; }
+  .dashboard-container.patient .ask-label-short { display: inline; }
+  .dashboard-container.patient .ask-button {
+    margin-left: auto;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+
+  /* Favorites filters: dropdown on mobile (patient favorites only) */
+  .dashboard-container.patient .favorites-page .filters { display: none; }
+  .dashboard-container.patient .favorites-page .filters-mobile {
+    display: block;
+    margin-bottom: 16px;
+  }
+  .dashboard-container.patient .favorites-page .filter-dropdown {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    background: white;
+    font-size: 0.95rem;
+  }
 }
 

@@ -169,8 +169,9 @@ const Forums = () => {
     <div className="page-content">
       <div className="forums-header">
         <h1>Forums</h1>
-        <button onClick={() => setShowPostForm(true)} className="primary-button">
-          Ask a Question
+        <button onClick={() => setShowPostForm(true)} className="primary-button ask-button">
+          <span className="ask-label-full">Ask a Question</span>
+          <span className="ask-label-short">Ask</span>
         </button>
       </div>
       <p className="subtitle">Join discussions and get answers from researchers</p>
@@ -199,7 +200,7 @@ const Forums = () => {
           if (searchQuery.trim()) {
             filterPosts(searchQuery);
           }
-        }} className="primary-button">Search</button>
+        }} className="primary-button search-button">Search</button>
         {searchQuery && (
           <button onClick={() => {
             setSearchQuery('');
