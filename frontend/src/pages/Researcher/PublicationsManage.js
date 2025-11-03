@@ -21,8 +21,22 @@ const PublicationsManage = () => {
     abstract: '',
     fullTextUrl: '',
   });
+  const [profileName, setProfileName] = useState('');
 
   useEffect(() => {
+    // Load current researcher's profile to help identify ownership by author name
+    const loadProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`${API_URL}/researchers/profile`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.data?.name) setProfileName(res.data.name);
+      } catch (e) {
+        // non-blocking
+      }
+    };
+    loadProfile();
     fetchPublications();
     fetchFavorites();
   }, []);
@@ -103,7 +117,16 @@ const PublicationsManage = () => {
           'Authorization': `Bearer ${token}`
         }
       });
-      setPublications(response.data);
+      // Show only self-managed publications (manually added by this researcher)
+      let selfOnly = Array.isArray(response.data)
+        ? response.data.filter(p => (p.source || '').toLowerCase() === 'manual')
+        : [];
+      // Further restrict to items authored by the current researcher when we know their profile name
+      if (profileName) {
+        const target = profileName.toLowerCase().trim();
+        selfOnly = selfOnly.filter(p => Array.isArray(p.authors) && p.authors.some(a => (a || '').toLowerCase().includes(target)));
+      }
+      setPublications(selfOnly);
     } catch (error) {
       toast.error('Failed to fetch publications');
     } finally {
@@ -155,6 +178,16 @@ const PublicationsManage = () => {
       ...prev,
       [pubId]: !prev[pubId]
     }));
+  };
+
+  const handleViewPublication = (pub) => {
+    const doiUrl = pub.doi ? `https://doi.org/${pub.doi}` : null;
+    const url = pub.full_text_url || doiUrl;
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      toast.info('No link available for this publication');
+    }
   };
 
   const handleEdit = (pub) => {
@@ -394,6 +427,9 @@ const PublicationsManage = () => {
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
                 <div style={{ display: 'flex', gap: '15px' }}>
+                  <span className="action-link" onClick={() => handleViewPublication(pub)}>
+                    View
+                  </span>
                   <span className="action-link" onClick={() => handleEdit(pub)}>
                     Edit
                   </span>

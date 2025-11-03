@@ -248,7 +248,7 @@ const Favorites = () => {
               );
             }
             
-            // Publication Card - keeping existing style
+            // Publication Card - no AI text; links row at bottom
             if (details.type === 'publication' && details.data) {
               return (
                 <div key={favorite.id} className="card modern-card publication-card">
@@ -264,18 +264,20 @@ const Favorites = () => {
                   {details.data.journal && (
                     <p className="card-meta">Journal: {details.data.journal}</p>
                   )}
-                  {details.data.ai_summary && (
-                    <div className="ai-summary">
-                      <strong>AI Summary:</strong> {details.data.ai_summary}
-                    </div>
-                  )}
-                  <button
-                    onClick={() => handleRemoveFavorite('publication', favorite.item_id)}
-                    className="danger-button"
-                    style={{ marginTop: '10px' }}
-                  >
-                    Remove from Favorites
-                  </button>
+                  <div className="card-actions-row" style={{ marginTop: '12px' }}>
+                    <span className="action-link" onClick={() => {
+                      const doiUrl = details.data.doi ? `https://doi.org/${details.data.doi}` : null;
+                      const url = details.data.full_text_url || doiUrl;
+                      if (url) {
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                      } else {
+                        toast.info('No link available for this publication');
+                      }
+                    }}>View details</span>
+                    <span className="action-link" style={{ color: '#dc3545' }} onClick={() => handleRemoveFavorite('publication', favorite.item_id)}>
+                      Remove from Favorites
+                    </span>
+                  </div>
                 </div>
               );
             }
