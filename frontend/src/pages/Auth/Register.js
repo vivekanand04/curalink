@@ -40,8 +40,8 @@ const Register = () => {
       const user = await register(email, password, userType);
       toast.success('Registration successful!');
       
-      // Redirect to onboarding
-      if (user.user_type === 'patient') {
+      // Redirect to onboarding (support current camelCase shape)
+      if ((user.userType || user.user_type) === 'patient') {
         navigate('/patient/onboarding');
       } else {
         navigate('/researcher/onboarding');

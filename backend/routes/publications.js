@@ -5,6 +5,69 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { generateAISummary } = require('../utils/ai');
 const { fetchPubMedPublications, fetchClinicalTrialsGov } = require('../utils/externalApis');
 
+// Get publications authored by current researcher (server-side filtered)
+router.get('/mine', authenticate, authorize('researcher'), async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    // Get researcher's display name
+    const prof = await query('SELECT name FROM researcher_profiles WHERE user_id = $1', [userId]);
+    const name = prof.rows[0]?.name;
+    if (!name || !name.trim()) {
+      return res.json([]);
+    }
+
+    // DB publications: authors array contains the researcher's name (case-insensitive, substring match)
+    const dbResult = await query(
+      `SELECT * FROM publications 
+       WHERE EXISTS (
+         SELECT 1 FROM unnest(authors) a WHERE LOWER(a) LIKE LOWER($1)
+       )
+       ORDER BY publication_date DESC NULLS LAST, created_at DESC`,
+      [`%${name}%`]
+    );
+
+    // Profile-saved publications (JSONB)
+    const profileRes = await query('SELECT publications FROM researcher_profiles WHERE user_id = $1', [userId]);
+    let profilePubsRaw = profileRes.rows[0]?.publications;
+    let profilePubs = [];
+    try {
+      profilePubs = Array.isArray(profilePubsRaw) ? profilePubsRaw : JSON.parse(profilePubsRaw || '[]');
+    } catch (_) {
+      profilePubs = [];
+    }
+
+    // Normalize profile pubs to match DB shape as much as possible
+    const normProfile = profilePubs.map(p => ({
+      title: p.title || '',
+      authors: Array.isArray(p.authors) ? p.authors : (p.authors ? [p.authors] : []),
+      journal: p.journal || null,
+      publication_date: p.publicationDate ? (typeof p.publicationDate === 'string' ? p.publicationDate : null) : null,
+      doi: p.doi || null,
+      abstract: p.abstract || null,
+      full_text_url: p.url || null,
+      ai_summary: p.ai_summary || null,
+      source: p.source || 'profile'
+    }));
+
+    // Merge and dedupe by DOI, then by title (case-insensitive)
+    const byKey = new Map();
+    const add = (arr) => {
+      for (const pub of arr) {
+        const key = (pub.doi && pub.doi.trim()) ? `doi:${pub.doi.trim().toLowerCase()}` : `title:${(pub.title || '').trim().toLowerCase()}`;
+        if (!byKey.has(key)) byKey.set(key, pub);
+      }
+    };
+    add(dbResult.rows || []);
+    add(normProfile);
+
+    const merged = Array.from(byKey.values());
+    res.json(merged);
+  } catch (error) {
+    console.error('Error fetching my publications:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Get personalized publications for patient
 router.get('/personalized', authenticate, async (req, res) => {
   try {

@@ -112,21 +112,13 @@ const PublicationsManage = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/publications`, {
+      const response = await axios.get(`${API_URL}/publications/mine`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      // Show only self-managed publications (manually added by this researcher)
-      let selfOnly = Array.isArray(response.data)
-        ? response.data.filter(p => (p.source || '').toLowerCase() === 'manual')
-        : [];
-      // Further restrict to items authored by the current researcher when we know their profile name
-      if (profileName) {
-        const target = profileName.toLowerCase().trim();
-        selfOnly = selfOnly.filter(p => Array.isArray(p.authors) && p.authors.some(a => (a || '').toLowerCase().includes(target)));
-      }
-      setPublications(selfOnly);
+      const myPubs = Array.isArray(response.data) ? response.data : [];
+      setPublications(myPubs);
     } catch (error) {
       toast.error('Failed to fetch publications');
     } finally {

@@ -58,8 +58,24 @@ export const AuthProvider = ({ children }) => {
     const { token, user } = response.data;
     localStorage.setItem('token', token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    setUser(user);
-    return user;
+
+    // Enforce selected userType if backend returns a different one
+    const returnedType = user.userType || user.user_type;
+    let effectiveUser = user;
+    if (userType && returnedType && returnedType !== userType) {
+      try {
+        const changeRes = await axios.post(`${API_URL}/auth/change-account-type`, { userType });
+        const { token: newToken, user: updatedUser } = changeRes.data;
+        localStorage.setItem('token', newToken);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+        effectiveUser = updatedUser;
+      } catch (e) {
+        // If this fails, keep the original user; downstream routing will still work via user/user_type checks
+      }
+    }
+
+    setUser(effectiveUser);
+    return effectiveUser;
   };
 
   const logout = () => {

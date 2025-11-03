@@ -4,6 +4,7 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
 import '../Dashboard.css';
+import { normalizeOrFallback } from '../../utils/conditionNormalizer';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -23,13 +24,23 @@ const PatientOnboarding = () => {
   const { user } = useAuth();
 
   const addCondition = () => {
-    if (formData.currentCondition.trim()) {
-      setFormData({
-        ...formData,
-        conditions: [...formData.conditions, formData.currentCondition.trim()],
-        currentCondition: '',
-      });
+    const input = formData.currentCondition;
+    if (!input || !input.trim()) return;
+
+    const normalizedList = normalizeOrFallback(input);
+
+    const existing = new Set((formData.conditions || []).map((c) => c.trim()));
+    for (const label of normalizedList) {
+      if (!existing.has(label)) {
+        existing.add(label);
+      }
     }
+
+    setFormData({
+      ...formData,
+      conditions: Array.from(existing),
+      currentCondition: '',
+    });
   };
 
   const removeCondition = (index) => {

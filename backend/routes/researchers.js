@@ -63,7 +63,13 @@ router.post('/profile', authenticate, authorize('researcher'), async (req, res) 
 
       // If publications were imported, store them in the database and generate AI summaries
       if (importedPublications.length > 0) {
-        const existingPubs = JSON.parse(result.rows[0].publications || '[]');
+        let existingPubsRaw = result.rows[0].publications;
+        let existingPubs = [];
+        try {
+          existingPubs = Array.isArray(existingPubsRaw) ? existingPubsRaw : JSON.parse(existingPubsRaw || '[]');
+        } catch (_) {
+          existingPubs = [];
+        }
         const newPubs = [];
 
         for (const pub of importedPublications) {

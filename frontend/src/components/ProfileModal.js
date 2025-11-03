@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import '../pages/Dashboard.css';
+import { normalizeOrFallback } from '../utils/conditionNormalizer';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -143,13 +144,23 @@ const ProfileModal = ({ isOpen, onClose, userType, onProfileUpdate }) => {
   };
 
   const addCondition = () => {
-    if (patientFormData.currentCondition.trim()) {
-      setPatientFormData({
-        ...patientFormData,
-        conditions: [...patientFormData.conditions, patientFormData.currentCondition.trim()],
-        currentCondition: '',
-      });
+    const input = patientFormData.currentCondition;
+    if (!input || !input.trim()) return;
+
+    const normalizedList = normalizeOrFallback(input);
+
+    const existing = new Set((patientFormData.conditions || []).map((c) => c.trim()));
+    for (const label of normalizedList) {
+      if (!existing.has(label)) {
+        existing.add(label);
+      }
     }
+
+    setPatientFormData({
+      ...patientFormData,
+      conditions: Array.from(existing),
+      currentCondition: '',
+    });
   };
 
   const removeCondition = (index) => {
