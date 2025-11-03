@@ -122,9 +122,24 @@ const Favorites = () => {
     : favorites.filter(fav => fav.item_type === filter);
 
   return (
-    <div className="page-content">
+    <div className="page-content favorites-page">
       <h1>My Favorites</h1>
       <p className="subtitle">Your saved items for quick access</p>
+
+      {/* Mobile dropdown (visible on small screens) */}
+      <div className="filters-mobile">
+        <select
+          className="filter-dropdown"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          aria-label="Filter favorites"
+        >
+          <option value="all">All</option>
+          <option value="collaborator">Collaborator</option>
+          <option value="clinical_trial">Clinical Trial</option>
+          <option value="publication">Publication</option>
+        </select>
+      </div>
 
       <div className="filters">
         <button

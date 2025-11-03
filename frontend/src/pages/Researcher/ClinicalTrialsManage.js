@@ -195,7 +195,7 @@ const ClinicalTrialsManage = () => {
       <div className="forums-header">
         <h1>Manage Clinical Trials</h1>
         <button onClick={() => setShowForm(true)} className="primary-button">
-          Add New Trial
+          Add
         </button>
       </div>
       <p className="subtitle">Create and manage your clinical trials</p>

@@ -275,7 +275,7 @@ const ResearcherDashboard = () => {
   }, [profileDropdownOpen]);
 
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-container researcher">
       <nav className="dashboard-nav">
         <div className="nav-left">
           <button 
@@ -298,16 +298,13 @@ const ResearcherDashboard = () => {
               onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
               aria-label="Profile menu"
             >
-              {/* <div className="profile-icon">
+              <div className="profile-icon">
                 <img 
                   src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQyHK1jFQSzBikt4Dl5bg5bbxmYCGc10iGRMA&s" 
                   alt="Profile" 
                   className="profile-image"
                 />
-              </div> */}
-              <div className="profile-icon">
-<img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQyHK1jFQSzBikt4Dl5bg5bbxmYCGc10iGRMA&s" alt="Profile" className="profile-image" />
-</div>
+              </div>
             </button>
             
             {profileDropdownOpen && (

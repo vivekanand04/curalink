@@ -1,3 +1,108 @@
+/* Researcher ultra-small screens */
+@media (max-width: 440px) {
+  /* Navbar/profile alignment for researcher */
+  .dashboard-container.researcher .dashboard-nav {
+    padding: 12px 14px;
+    flex-wrap: nowrap;
+  }
+  .dashboard-container.researcher .nav-left { flex: 1; gap: 12px; }
+  .dashboard-container.researcher .nav-user { margin-left: auto; }
+  .dashboard-container.researcher .profile-icon { width: 36px; height: 36px; }
+
+  /* Collaborators: smaller tab buttons */
+  .dashboard-container.researcher .tabs-section .tab-button {
+    padding: 8px 12px;
+    font-size: 0.9rem;
+   
+  }
+  .tab-button{
+    display:none;
+  
+  }
+
+  /* Collaborators search: wrap & move All Specialties to next line */
+  .dashboard-container.researcher .collaborators-section .search-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .dashboard-container.researcher .collaborators-section .search-bar input {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: calc(100% - 56px);
+  }
+  .dashboard-container.researcher .collaborators-section .search-bar .search-button {
+    flex: 0 0 auto;
+    margin-left: 8px;
+    width: 40px;
+    min-width: 40px;
+    padding: 8px;
+  }
+  .dashboard-container.researcher .collaborators-section .all-specialties {
+    width: 100%;
+    margin: 10px 0 0 0 !important;
+  }
+
+  /* Replace Search label with right arrow */
+  .dashboard-container.researcher .search-button {
+    position: relative;
+    width: 44px;
+    min-width: 44px;
+    padding: 10px;
+    color: transparent;
+  }
+  .dashboard-container.researcher .search-button::after {
+    content: '→';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  /* Forums: show hamburger on mobile and hide inline actions */
+  .dashboard-container.researcher .forums-header { position: relative; }
+  .dashboard-container.researcher .forums-header .forums-actions { display: none; }
+  .dashboard-container.researcher .forums-header .forums-actions-menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    margin-left: auto;
+  }
+  .dashboard-container.researcher .forums-actions-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: white;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    width: 200px;
+    padding: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    z-index: 10;
+  }
+
+  /* Favorites: dropdown over buttons */
+  .dashboard-container.researcher .favorites-page .filters { display: none; }
+  .dashboard-container.researcher .favorites-page .filters-mobile { display: block; margin-bottom: 16px; }
+  .dashboard-container.researcher .favorites-page .filter-dropdown {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    background: white;
+    font-size: 0.95rem;
+  }
+}
 .dashboard-container {
   min-height: 100vh;
   background: #fafafa;
@@ -1292,8 +1397,9 @@
   transition: background 0.2s ease;
   border: none;
   cursor: pointer;
+ 
+  display:none;
 }
-
 .primary-button:hover {
   background: #333;
 }
@@ -1308,6 +1414,8 @@
   transition: background 0.2s ease, border-color 0.2s ease;
   border: 1px solid #d0d0d0;
   cursor: pointer;
+  display:none
+
 }
 
 .secondary-button:hover {

@@ -279,7 +279,7 @@ const PublicationsManage = () => {
       <div className="forums-header">
         <h1>Publications</h1>
         <button onClick={() => setShowForm(true)} className="primary-button">
-          Add Publication
+          Add
         </button>
       </div>
       <p className="subtitle">Manage and add publications to the database</p>

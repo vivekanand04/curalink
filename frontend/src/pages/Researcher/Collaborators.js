@@ -359,7 +359,7 @@ const Collaborators = () => {
                 setSpecialtyFilter(e.target.value);
                 handleSearch();
               }}
-              className="filter-select"
+              className="filter-select all-specialties"
               style={{ marginLeft: '10px', padding: '8px' }}
             >
               <option value="">All Specialties</option>
@@ -369,7 +369,7 @@ const Collaborators = () => {
               <option value="Cardiology">Cardiology</option>
               <option value="Cancer Research">Cancer Research</option>
             </select>
-            <button onClick={handleSearch} className="primary-button">
+            <button onClick={handleSearch} className="primary-button search-button">
               Search
             </button>
           </div>

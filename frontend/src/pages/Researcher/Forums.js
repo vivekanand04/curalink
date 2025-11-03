@@ -25,6 +25,7 @@ const Forums = () => {
   });
   const [replyContent, setReplyContent] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
 
   useEffect(() => {
     fetchCategories();
@@ -251,13 +252,33 @@ const Forums = () => {
     <div className="page-content">
       <div className="forums-header">
         <h1>Forums</h1>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => setShowCategoryForm(true)} className="secondary-button">
-            Create Community
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', position: 'relative' }}>
+          <div className="forums-actions" style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={() => setShowCategoryForm(true)} className="secondary-button">
+              Create Community
+            </button>
+            <button onClick={() => setShowPostForm(true)} className="primary-button">
+              Ask Question
+            </button>
+          </div>
+          <button
+            type="button"
+            className="icon-button forums-actions-menu"
+            onClick={() => setShowActionsMenu((v) => !v)}
+            aria-label="Open actions"
+          >
+            ☰
           </button>
-          <button onClick={() => setShowPostForm(true)} className="primary-button">
-            Ask Question
-          </button>
+          {showActionsMenu && (
+            <div className="forums-actions-dropdown" onMouseLeave={() => setShowActionsMenu(false)}>
+              <button onClick={() => { setShowCategoryForm(true); setShowActionsMenu(false); }} className="secondary-button" style={{ width: '100%' }}>
+                Create Community
+              </button>
+              <button onClick={() => { setShowPostForm(true); setShowActionsMenu(false); }} className="primary-button" style={{ width: '100%' }}>
+                Ask Question
+              </button>
+            </div>
+          )}
         </div>
       </div>
       <p className="subtitle">Engage in discussions and help answer patient questions</p>
