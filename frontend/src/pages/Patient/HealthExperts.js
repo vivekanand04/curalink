@@ -122,7 +122,30 @@ const HealthExperts = () => {
           'Authorization': `Bearer ${token}`
         }
       });
-      toast.success('Meeting request sent successfully');
+      // Find expert and determine availability from backend data
+      const expert = experts.find(e => e.id === expertId);
+      const isActive = !!expert?.availability_for_meetings;
+      const expertName = expert?.name || 'Researcher';
+
+      if (isActive) {
+        toast.success(`Request sent to ${expertName} successfully.`);
+        // Store in localStorage so researcher Meeting Requests can read (UI only)
+        try {
+          const stored = JSON.parse(localStorage.getItem('meetingRequests') || '[]');
+          const newReq = {
+            id: Date.now(),
+            name: meetingForm.patientName,
+            contact: meetingForm.patientContact,
+            reason: meetingForm.message || '—',
+            datetime: new Date().toISOString().slice(0,16).replace('T',' '),
+            status: 'pending',
+          };
+          stored.unshift(newReq);
+          localStorage.setItem('meetingRequests', JSON.stringify(stored));
+        } catch {}
+      } else {
+        toast.info('Researcher is not active to accept meetings; request sent to OWNER successfully.');
+      }
     } catch (error) {
       toast.error('Failed to send meeting request');
     }

@@ -190,5 +190,34 @@ router.get('/profile', authenticate, authorize('researcher'), async (req, res) =
   }
 });
 
+// Update availability for meetings (toggle)
+router.put('/availability', authenticate, authorize('researcher'), async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { availabilityForMeetings } = req.body;
+
+    // Try to update existing profile
+    const update = await query(
+      `UPDATE researcher_profiles 
+       SET availability_for_meetings = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $2`,
+      [!!availabilityForMeetings, userId]
+    );
+
+    if (update.rowCount === 0) {
+      // Create minimal profile if none exists
+      await query(
+        `INSERT INTO researcher_profiles (user_id, availability_for_meetings) VALUES ($1, $2)`,
+        [userId, !!availabilityForMeetings]
+      );
+    }
+
+    res.json({ success: true, availabilityForMeetings: !!availabilityForMeetings });
+  } catch (error) {
+    console.error('Error updating availability:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;
 

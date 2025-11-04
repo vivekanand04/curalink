@@ -8,6 +8,7 @@ import Collaborators from './Collaborators';
 import ClinicalTrialsManage from './ClinicalTrialsManage';
 import PublicationsManage from './PublicationsManage';
 import Forums from './Forums';
+import MeetingRequests from './MeetingRequests';
 import Favorites from './Favorites';
 import ProfileModal from '../../components/ProfileModal';
 import AccountTypeModal from '../../components/AccountTypeModal';
@@ -32,11 +33,34 @@ const ResearcherDashboard = () => {
   const [showConnectionConfirm, setShowConnectionConfirm] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null); // { type: 'send'|'cancel'|'accept', collaboratorId, connection }
   const { user, logout } = useAuth();
+  const [meetingActive, setMeetingActive] = useState(() => {
+    try {
+      const stored = localStorage.getItem('researcherMeetingActive');
+      return stored ? JSON.parse(stored) : false;
+    } catch {
+      return false;
+    }
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchProfile();
   }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem('researcherMeetingActive', JSON.stringify(meetingActive));
+    } catch {}
+    // Sync availability to backend
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.put(`${API_URL}/researchers/availability`, { availabilityForMeetings: !!meetingActive }, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } catch (_) {}
+    })();
+  }, [meetingActive]);
+
 
   useEffect(() => {
     if (activeTab === 'dashboard' && user?.id) {
@@ -99,6 +123,10 @@ const ResearcherDashboard = () => {
       
       if (response.data && Object.keys(response.data).length > 0) {
         setProfile(response.data);
+        // Initialize meeting availability from backend profile
+        if (typeof response.data.availability_for_meetings === 'boolean') {
+          setMeetingActive(response.data.availability_for_meetings);
+        }
       } else {
         // Profile doesn't exist, redirect to onboarding
         navigate('/researcher/onboarding');
@@ -322,6 +350,24 @@ const ResearcherDashboard = () => {
                     <div className="profile-dropdown-type">Researcher</div>
                   </div>
                 </div>
+                <div className="profile-dropdown-divider"></div>
+                <div className="profile-dropdown-item meeting-toggle-row" role="button" aria-label="Meeting notification toggle" onClick={() => setMeetingActive(!meetingActive)}>
+                  <span className="dropdown-icon">🟢</span>
+                  <span style={{ flex: 1 }}>Meeting Notification</span>
+                  <span className={`meeting-toggle ${meetingActive ? 'active' : ''}`} aria-pressed={meetingActive} aria-label={meetingActive ? 'Meeting active' : 'Meeting inactive'}>
+                    <span className="meeting-toggle-knob"></span>
+                  </span>
+                </div>
+                <button 
+                  className="profile-dropdown-item"
+                  onClick={() => {
+                    setProfileDropdownOpen(false);
+                    setActiveTab('meetingRequests');
+                  }}
+                >
+                  <span className="dropdown-icon">📆</span>
+                  <span>Show Meeting Requests</span>
+                </button>
                 <div className="profile-dropdown-divider"></div>
                 <button 
                   className="profile-dropdown-item"
@@ -735,6 +781,7 @@ const ResearcherDashboard = () => {
         {activeTab === 'trials' && <ClinicalTrialsManage />}
         {activeTab === 'publications' && <PublicationsManage />}
         {activeTab === 'forums' && <Forums />}
+        {activeTab === 'meetingRequests' && <MeetingRequests researcherName={profile?.name || 'Researcher'} />}
         {activeTab === 'favorites' && <Favorites />}
         </div>
       </div>

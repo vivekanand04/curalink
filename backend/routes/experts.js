@@ -7,9 +7,10 @@ const { authenticate, authorize } = require('../middleware/auth');
 router.get('/', authenticate, authorize('patient'), async (req, res) => {
   try {
     const result = await query(
-      `SELECT he.*, u.email 
+      `SELECT he.*, u.email, rp.availability_for_meetings 
        FROM health_experts he
        LEFT JOIN users u ON he.researcher_id = u.id
+       LEFT JOIN researcher_profiles rp ON rp.user_id = he.researcher_id
        WHERE he.is_platform_member = true OR he.researcher_id IS NOT NULL
        ORDER BY he.is_platform_member DESC, he.researcher_id IS NOT NULL DESC, he.created_at DESC 
        LIMIT 50`
@@ -47,9 +48,10 @@ router.get('/personalized', authenticate, authorize('patient'), async (req, res)
     });
 
     const result = await query(
-      `SELECT he.*, u.email 
+      `SELECT he.*, u.email, rp.availability_for_meetings 
        FROM health_experts he
        LEFT JOIN users u ON he.researcher_id = u.id
+       LEFT JOIN researcher_profiles rp ON rp.user_id = he.researcher_id
        WHERE ${conditionPatterns}
        ORDER BY he.is_platform_member DESC, he.created_at DESC 
        LIMIT 20`,
@@ -67,7 +69,7 @@ router.get('/personalized', authenticate, authorize('patient'), async (req, res)
 router.get('/search', authenticate, authorize('patient'), async (req, res) => {
   try {
     const { query: searchQuery, specialty, location } = req.query;
-    let queryText = 'SELECT he.*, u.email FROM health_experts he LEFT JOIN users u ON he.researcher_id = u.id WHERE 1=1';
+    let queryText = 'SELECT he.*, u.email, rp.availability_for_meetings FROM health_experts he LEFT JOIN users u ON he.researcher_id = u.id LEFT JOIN researcher_profiles rp ON rp.user_id = he.researcher_id WHERE 1=1';
     const params = [];
     let paramIndex = 1;
 
@@ -125,6 +127,24 @@ router.post('/:id/meeting-request', authenticate, authorize('patient'), async (r
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get meeting requests for the authenticated researcher
+router.get('/meeting-requests', authenticate, authorize('researcher'), async (req, res) => {
+  try {
+    const researcherId = req.user.userId;
+    const result = await query(
+      `SELECT id, patient_id, expert_id, patient_name, patient_contact, message, status, created_at
+       FROM meeting_requests
+       WHERE expert_id = $1
+       ORDER BY created_at DESC`,
+      [researcherId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching meeting requests:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
