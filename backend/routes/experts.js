@@ -148,19 +148,20 @@ router.post('/:id/meeting-request', authenticate, authorize('patient'), async (r
     const patientId = req.user.userId;
 
     // Check if expert exists
-    const expertResult = await query('SELECT researcher_id, is_platform_member FROM health_experts WHERE id = $1', [id]);
+    const expertResult = await query('SELECT researcher_id, is_platform_member, external_source FROM health_experts WHERE id = $1', [id]);
     if (expertResult.rows.length === 0) {
       return res.status(404).json({ message: 'Expert not found' });
     }
 
     const expert = expertResult.rows[0];
+    const expertUserId = expert.researcher_id || null; // For imported experts (no researcher account), route to owner later; store null here
 
     // Create meeting request
     const result = await query(
       `INSERT INTO meeting_requests (patient_id, expert_id, patient_name, patient_contact, message, status)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [patientId, expert.researcher_id || id, patientName, patientContact, message, 'pending']
+      [patientId, expertUserId, patientName, patientContact, message, 'pending']
     );
 
     res.status(201).json(result.rows[0]);

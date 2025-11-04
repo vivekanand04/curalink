@@ -9,13 +9,23 @@ const HealthExperts = () => {
   const [experts, setExperts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // favorite experts (star)
   const [followedExperts, setFollowedExperts] = useState(new Set());
+  // following state (independent from favorites)
+  const [followingExperts, setFollowingExperts] = useState(() => {
+    try {
+      const raw = localStorage.getItem('followingExperts');
+      const arr = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch { return new Set(); }
+  });
   const [showMeetingModal, setShowMeetingModal] = useState(null);
   const [meetingForm, setMeetingForm] = useState({
     patientName: '',
     patientContact: '',
     message: '',
   });
+  const [nudged, setNudged] = useState(() => new Set());
 
   useEffect(() => {
     fetchExperts();
@@ -93,36 +103,46 @@ const HealthExperts = () => {
     }
   };
 
-  const handleFollow = async (expertId) => {
+  // Toggle following (UI-only, decoupled from favorites)
+  const handleFollow = (expertId) => {
+    setFollowingExperts(prev => {
+      const next = new Set(prev);
+      if (next.has(expertId)) {
+        next.delete(expertId);
+        toast.success('Unfollowed');
+      } else {
+        next.add(expertId);
+        toast.success('Following');
+      }
+      try { localStorage.setItem('followingExperts', JSON.stringify(Array.from(next))); } catch {}
+      return next;
+    });
+  };
+
+  // Toggle favorites for expert (star icon)
+  const toggleFavoriteExpert = async (expertId) => {
     try {
       const token = localStorage.getItem('token');
-      const headers = {
-        'Authorization': `Bearer ${token}`
-      };
-      
+      const headers = { 'Authorization': `Bearer ${token}` };
       if (followedExperts.has(expertId)) {
-        // Unfollow
         await axios.delete(`${API_URL}/favorites/expert/${expertId}`, { headers });
-        setFollowedExperts(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(expertId);
-          return newSet;
-        });
-        toast.success('Expert unfollowed');
+        setFollowedExperts(prev => { const n = new Set(prev); n.delete(expertId); return n; });
       } else {
-        // Follow
-        await axios.post(`${API_URL}/experts/${expertId}/follow`, {}, { headers });
+        await axios.post(`${API_URL}/favorites`, { itemType: 'expert', itemId: expertId }, { headers });
         setFollowedExperts(prev => new Set(prev).add(expertId));
-        toast.success('Expert followed successfully');
       }
-    } catch (error) {
-      if (error.response?.status === 404 || error.response?.status === 409) {
-        toast.info('Expert bookmarked');
-        setFollowedExperts(prev => new Set(prev).add(expertId));
-      } else {
-        toast.error('Failed to follow expert');
-      }
+    } catch {
+      toast.error('Failed to update favourites');
     }
+  };
+
+  const handleNudge = (expertId) => {
+    setNudged(prev => {
+      const next = new Set(prev);
+      next.add(expertId);
+      return next;
+    });
+    toast.success('Nudge sent');
   };
 
   const handleRequestMeeting = async (expertId) => {
@@ -138,12 +158,17 @@ const HealthExperts = () => {
           'Authorization': `Bearer ${token}`
         }
       });
+
       // Find expert and determine availability from backend data
       const expert = experts.find(e => e.id === expertId);
+      const isImported = !!expert?.external_source;
       const isActive = !!expert?.availability_for_meetings;
       const expertName = expert?.name || 'Researcher';
 
-      if (isActive) {
+      if (isImported) {
+        // Imported expert: route to owner (handled server-side via null expert_id) and show popup
+        toast.info(`${expertName} is not active on the platform; the message has been sent to the owner.`);
+      } else if (isActive) {
         toast.success(`Request sent to ${expertName} successfully.`);
         // Store in localStorage so researcher Meeting Requests can read (UI only)
         try {
@@ -189,8 +214,10 @@ const HealthExperts = () => {
         <div className="cards-grid">
           {experts.map((expert) => (
             <div key={expert.id} className="card modern-card expert-card">
-              <div className="card-favorite-icon" onClick={() => handleFollow(expert.id)}>
-                <span className="star-icon">☆</span>
+              <div className="card-favorite-icon" onClick={() => toggleFavoriteExpert(expert.id)}>
+                <span className={`star-icon ${followedExperts.has(expert.id) ? 'star-filled' : ''}`}>
+                  {followedExperts.has(expert.id) ? '★' : '☆'}
+                </span>
               </div>
               <h3 className="card-title">{expert.name || 'Expert'}</h3>
               <p className="card-affiliation">
@@ -213,15 +240,32 @@ const HealthExperts = () => {
                   onClick={() => handleFollow(expert.id)}
                   className={`follow-button ${followedExperts.has(expert.id) ? 'following' : ''}`}
                 >
-                  {followedExperts.has(expert.id) ? 'Following' : 'Follow'}
+                  {followingExperts.has(expert.id) ? 'Following' : 'Follow'}
                 </button>
-                {expert.is_platform_member && (
-                  <button
-                    onClick={() => setShowMeetingModal(expert.id)}
-                    className="request-meeting-button"
-                  >
-                    Request Meeting
-                  </button>
+                {expert.external_source ? (
+                  <>
+                    <button
+                      onClick={() => setShowMeetingModal(expert.id)}
+                      className="request-meeting-button"
+                    >
+                      Request Meeting
+                    </button>
+                    <button
+                      onClick={() => handleNudge(expert.id)}
+                      className="secondary-button"
+                    >
+                      {nudged.has(expert.id) ? 'Nudge Sent' : 'Nudge to Join'}
+                    </button>
+                  </>
+                ) : (
+                  expert.is_platform_member && (
+                    <button
+                      onClick={() => setShowMeetingModal(expert.id)}
+                      className="request-meeting-button"
+                    >
+                      Request Meeting
+                    </button>
+                  )
                 )}
               </div>
             </div>

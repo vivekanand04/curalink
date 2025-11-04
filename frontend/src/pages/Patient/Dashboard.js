@@ -35,6 +35,14 @@ const PatientDashboard = () => {
   const [expandedAISummaries, setExpandedAISummaries] = useState({}); // Track expanded AI summaries: { 'clinical_trial_1': true, 'publication_2': true }
   const [favorites, setFavorites] = useState({}); // Track favorites: { 'clinical_trial_1': true, 'expert_2': true, etc. }
   const [followedExperts, setFollowedExperts] = useState(new Set());
+  const [followingExperts, setFollowingExperts] = useState(() => {
+    try {
+      const raw = localStorage.getItem('followingExperts');
+      const arr = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch { return new Set(); }
+  });
+  const [nudgedImportedExperts, setNudgedImportedExperts] = useState(() => new Set());
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -72,6 +80,15 @@ const PatientDashboard = () => {
     }
   };
 
+  const handleNudgeImportedExpert = (expertId) => {
+    setNudgedImportedExperts(prev => {
+      const next = new Set(prev);
+      next.add(expertId);
+      return next;
+    });
+    toast.success('Nudge sent');
+  };
+
   const handleToggleFavorite = async (itemType, itemId) => {
     try {
       const token = localStorage.getItem('token');
@@ -104,42 +121,19 @@ const PatientDashboard = () => {
     }
   };
 
-  const handleFollowExpert = async (expertId) => {
-    try {
-      const token = localStorage.getItem('token');
-      const headers = {
-        'Authorization': `Bearer ${token}`
-      };
-      
-      if (followedExperts.has(expertId)) {
-        // Unfollow
-        await axios.delete(`${API_URL}/favorites/expert/${expertId}`, { headers });
-        setFollowedExperts(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(expertId);
-          return newSet;
-        });
-        setFavorites(prev => {
-          const newFavs = { ...prev };
-          delete newFavs[`expert_${expertId}`];
-          return newFavs;
-        });
-        toast.success('Expert unfollowed');
+  const handleFollowExpert = (expertId) => {
+    setFollowingExperts(prev => {
+      const next = new Set(prev);
+      if (next.has(expertId)) {
+        next.delete(expertId);
+        toast.success('Unfollowed');
       } else {
-        // Follow
-        await axios.post(`${API_URL}/experts/${expertId}/follow`, {}, { headers });
-        setFollowedExperts(prev => new Set(prev).add(expertId));
-        setFavorites(prev => ({ ...prev, [`expert_${expertId}`]: true }));
-        toast.success('Expert followed successfully');
+        next.add(expertId);
+        toast.success('Following');
       }
-    } catch (error) {
-      if (error.response?.status === 404 || error.response?.status === 409) {
-        toast.info('Expert bookmarked');
-        setFollowedExperts(prev => new Set(prev).add(expertId));
-      } else {
-        toast.error('Failed to follow expert');
-      }
-    }
+      try { localStorage.setItem('followingExperts', JSON.stringify(Array.from(next))); } catch {}
+      return next;
+    });
   };
 
   const [showMeetingModal, setShowMeetingModal] = useState(null);
@@ -162,12 +156,15 @@ const PatientDashboard = () => {
           'Authorization': `Bearer ${token}`
         }
       });
-      // Find expert and determine availability from backend data
+      // Find expert and determine availability/imported from backend data
       const expert = experts.find(e => e.id === expertId);
+      const isImported = !!expert?.external_source;
       const isActive = !!expert?.availability_for_meetings;
       const expertName = expert?.name || 'Researcher';
 
-      if (isActive) {
+      if (isImported) {
+        toast.info(`${expertName} is not active on the platform; the message has been sent to the owner.`);
+      } else if (isActive) {
         toast.success(`Request sent to ${expertName} successfully.`);
         try {
           const stored = JSON.parse(localStorage.getItem('meetingRequests') || '[]');
@@ -792,46 +789,94 @@ const PatientDashboard = () => {
                   <div className="recommended-scroll-container">
                     <div className="recommended-scroll-content">
                       {experts.slice(0, 2).map((expert) => (
-                        <div key={expert.id} className="recommended-card modern-card expert-card">
-                          <div className="card-favorite-icon" onClick={() => handleToggleFavorite('expert', expert.id)}>
-                            <span className={`star-icon ${favorites[`expert_${expert.id}`] ? 'star-filled' : ''}`}>
-                              {favorites[`expert_${expert.id}`] ? '★' : '☆'}
-                            </span>
-                          </div>
-                          <h3 className="card-title">{expert.name || 'Expert'}</h3>
-                          <p className="card-affiliation">
-                            {expert.specialties && expert.specialties.length > 0 
-                              ? `${expert.specialties[0]}${expert.location ? ` at ${expert.location}` : ''}`
-                              : expert.location || 'Health Expert'}
-                          </p>
+                        expert.external_source ? (
+                          <div key={expert.id} className="card modern-card expert-card">
+                            <div className="card-favorite-icon" onClick={() => handleToggleFavorite('expert', expert.id)}>
+                              <span className={`star-icon ${favorites[`expert_${expert.id}`] ? 'star-filled' : ''}`}> 
+                                {favorites[`expert_${expert.id}`] ? '★' : '☆'}
+                              </span>
+                            </div>
+                            <h3 className="card-title">{expert.name || 'Expert'}</h3>
+                            <p className="card-affiliation">
+                              {expert.specialties && expert.specialties.length > 0 
+                                ? `${expert.specialties[0]}${expert.location ? ` at ${expert.location}` : ''}`
+                                : expert.location || 'Health Expert'}
+                            </p>
                             {expert.research_interests && expert.research_interests.length > 0 && (
-                            <>
-                              <p className="card-section-label">Research Interests:</p>
-                              <div className="interests-tags">
-                                {expert.research_interests.slice(0, 2).map((interest, idx) => (
-                                  <span key={idx} className="interest-tag">{interest}</span>
-                                ))}
-                              </div>
-                            </>
+                              <>
+                                <p className="card-section-label">Research Interests:</p>
+                                <div className="interests-tags">
+                                  {expert.research_interests.slice(0, 3).map((interest, idx) => (
+                                    <span key={idx} className="interest-tag">{interest}</span>
+                                  ))}
+                                </div>
+                              </>
                             )}
-                          <div className="card-actions-buttons">
-                            <button
-                              onClick={() => handleFollowExpert(expert.id)}
-                              className={`follow-button ${followedExperts.has(expert.id) ? 'following' : ''}`}
-                            >
-                              {followedExperts.has(expert.id) ? 'Following' : 'Follow'}
-                            </button>
-                            {expert.is_platform_member && (
+                            <div className="card-actions-buttons">
+                              <button
+                                onClick={() => handleFollowExpert(expert.id)}
+                                className="follow-button"
+                                style={{ background: followingExperts.has(expert.id) ? '#34A853' : undefined }}
+                              >
+                                {followingExperts.has(expert.id) ? 'Following' : 'Follow'}
+                              </button>
                               <button
                                 onClick={() => setShowMeetingModal(expert.id)}
                                 className="request-meeting-button"
                               >
                                 Request Meeting
                               </button>
+                              <button
+                                onClick={() => handleNudgeImportedExpert(expert.id)}
+                                className="secondary-button"
+                              >
+                                {nudgedImportedExperts.has(expert.id) ? 'Nudge Sent' : 'Nudge to Join'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div key={expert.id} className="recommended-card modern-card expert-card">
+                            <div className="card-favorite-icon" onClick={() => handleToggleFavorite('expert', expert.id)}>
+                              <span className={`star-icon ${favorites[`expert_${expert.id}`] ? 'star-filled' : ''}`}>
+                                {favorites[`expert_${expert.id}`] ? '★' : '☆'}
+                              </span>
+                            </div>
+                            <h3 className="card-title">{expert.name || 'Expert'}</h3>
+                            <p className="card-affiliation">
+                              {expert.specialties && expert.specialties.length > 0 
+                                ? `${expert.specialties[0]}${expert.location ? ` at ${expert.location}` : ''}`
+                                : expert.location || 'Health Expert'}
+                            </p>
+                            {expert.research_interests && expert.research_interests.length > 0 && (
+                              <>
+                                <p className="card-section-label">Research Interests:</p>
+                                <div className="interests-tags">
+                                  {expert.research_interests.slice(0, 2).map((interest, idx) => (
+                                    <span key={idx} className="interest-tag">{interest}</span>
+                                  ))}
+                                </div>
+                              </>
                             )}
+                            <div className="card-actions-buttons">
+                              <button
+                                onClick={() => handleFollowExpert(expert.id)}
+                                className="follow-button"
+                                style={{ background: followingExperts.has(expert.id) ? '#34A853' : undefined }}
+                              >
+                                {followingExperts.has(expert.id) ? 'Following' : 'Follow'}
+                              </button>
+                              {expert.is_platform_member && (
+                                <button
+                                  onClick={() => setShowMeetingModal(expert.id)}
+                                  className="request-meeting-button"
+                                >
+                                  Request Meeting
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          </div>
-                        ))}
+                        )
+                      ))}
                     </div>
                   </div>
                 ) : (

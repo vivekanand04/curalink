@@ -11,6 +11,13 @@ const Favorites = () => {
   const [loading, setLoading] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [favoriteDetails, setFavoriteDetails] = useState([]);
+  const [followingExperts, setFollowingExperts] = useState(() => {
+    try {
+      const raw = localStorage.getItem('followingExperts');
+      const arr = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch { return new Set(); }
+  });
   const [expandedAISummaries, setExpandedAISummaries] = useState({});
   const [showAISummary, setShowAISummary] = useState(null);
   const [showMeetingForm, setShowMeetingForm] = useState(null);
@@ -111,6 +118,21 @@ const Favorites = () => {
 
   const handleToggleFavorite = async (itemType, itemId) => {
     await handleRemoveFavorite(itemType, itemId);
+  };
+
+  const toggleFollowing = (expertId) => {
+    setFollowingExperts(prev => {
+      const next = new Set(prev);
+      if (next.has(expertId)) {
+        next.delete(expertId);
+        toast.success('Unfollowed');
+      } else {
+        next.add(expertId);
+        toast.success('Following');
+      }
+      try { localStorage.setItem('followingExperts', JSON.stringify(Array.from(next))); } catch {}
+      return next;
+    });
   };
 
   const handleContactTrial = (trial) => {
@@ -319,21 +341,11 @@ const Favorites = () => {
                       </div>
                     </>
                   )}
-                  <div className="card-actions-buttons">
-                    <button
-                      onClick={() => handleFollowExpert(item.id)}
-                      className="follow-button"
-                    >
-                      Follow
-                    </button>
-                    {item.is_platform_member && (
-                      <button
-                        onClick={() => setShowMeetingForm(item.id)}
-                        className="request-meeting-button"
-                      >
-                        Request Meeting
-                      </button>
-                    )}
+                  <div className="card-actions-row" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span className="action-link" onClick={() => toggleFollowing(item.id)}>
+                      {followingExperts.has(item.id) ? 'Following' : 'Follow'}
+                    </span>
+                    <span className="action-link" style={{ color: '#dc3545', textAlign: 'right' }} onClick={() => handleToggleFavorite('expert', item.id)}>Remove from Favourite</span>
                   </div>
                   {showMeetingForm === item.id && (
                     <div className="meeting-form">
