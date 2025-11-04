@@ -11,7 +11,7 @@ router.get('/', authenticate, authorize('patient'), async (req, res) => {
        FROM health_experts he
        LEFT JOIN users u ON he.researcher_id = u.id
        LEFT JOIN researcher_profiles rp ON rp.user_id = he.researcher_id
-       WHERE he.is_platform_member = true OR he.researcher_id IS NOT NULL
+       WHERE he.is_platform_member = true OR he.researcher_id IS NOT NULL OR he.external_source IS NOT NULL
        ORDER BY he.is_platform_member DESC, he.researcher_id IS NOT NULL DESC, he.created_at DESC 
        LIMIT 50`
     );
@@ -20,6 +20,45 @@ router.get('/', authenticate, authorize('patient'), async (req, res) => {
   } catch (error) {
     console.error('Error fetching experts:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Import external experts from publications authors if not present
+router.post('/import-external', authenticate, authorize('patient'), async (req, res) => {
+  try {
+    const insert = await query(
+      `INSERT INTO health_experts (name, specialties, research_interests, location, email, is_platform_member, external_source)
+       SELECT DISTINCT a.name, ARRAY[]::text[], ARRAY[]::text[], NULL, NULL, false, 'publication'
+       FROM (
+         SELECT unnest(authors) AS name FROM publications WHERE authors IS NOT NULL
+       ) a
+       WHERE a.name IS NOT NULL AND a.name <> ''
+         AND NOT EXISTS (
+           SELECT 1 FROM health_experts he WHERE he.name = a.name AND he.external_source = 'publication'
+         )
+       RETURNING id`
+    );
+    let inserted = insert.rowCount || 0;
+
+    // Fallback seed if no publications available
+    if (inserted === 0) {
+      const seed = await query(
+        `INSERT INTO health_experts (name, specialties, research_interests, location, email, is_platform_member, external_source)
+         VALUES 
+         ('Dr. Jane Doe', ARRAY['Oncology'], ARRAY['Lung Cancer','Immunotherapy'], 'Global', NULL, false, 'seed'),
+         ('Dr. John Smith', ARRAY['Cardiology'], ARRAY['Heart Failure','Hypertension'], 'Global', NULL, false, 'seed'),
+         ('Dr. Alice Example', ARRAY['Neurology'], ARRAY['Brain Tumors','Neuro-Oncology'], 'Global', NULL, false, 'seed')
+         ON CONFLICT DO NOTHING
+         RETURNING id`
+      );
+      inserted += seed.rowCount || 0;
+    }
+
+    console.log(`Imported external experts: ${inserted}`);
+    return res.json({ inserted });
+  } catch (error) {
+    console.error('Error importing external experts:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -37,9 +76,9 @@ router.get('/personalized', authenticate, authorize('patient'), async (req, res)
     }
 
     // Search for experts matching conditions
-    // Use array overlap operator (&&) or ILIKE for text search
+    // Use exact-in-array or ILIKE for text search (qualify columns)
     const conditionPatterns = conditions.map((_, i) => 
-      `($${i * 2 + 1} = ANY(specialties) OR $${i * 2 + 1} = ANY(research_interests) OR specialties::text ILIKE $${i * 2 + 2} OR research_interests::text ILIKE $${i * 2 + 2})`
+      `($${i * 2 + 1} = ANY(he.specialties) OR $${i * 2 + 1} = ANY(he.research_interests) OR he.specialties::text ILIKE $${i * 2 + 2} OR he.research_interests::text ILIKE $${i * 2 + 2})`
     ).join(' OR ');
     
     const params = [];

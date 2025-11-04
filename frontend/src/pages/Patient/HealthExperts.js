@@ -48,8 +48,15 @@ const HealthExperts = () => {
       };
       
       // Fetch all experts initially
-      const response = await axios.get(`${API_URL}/experts`, { headers });
-      setExperts(response.data);
+      let response = await axios.get(`${API_URL}/experts`, { headers });
+      if (!response.data || response.data.length === 0) {
+        // Auto-import external experts from publications, then refetch
+        try {
+          await axios.post(`${API_URL}/experts/import-external`, {}, { headers });
+          response = await axios.get(`${API_URL}/experts`, { headers });
+        } catch {}
+      }
+      setExperts(response.data || []);
     } catch (error) {
       toast.error('Failed to fetch experts');
     } finally {
@@ -65,11 +72,20 @@ const HealthExperts = () => {
         'Authorization': `Bearer ${token}`
       };
       
-      const response = await axios.get(`${API_URL}/experts/search`, {
+      let response = await axios.get(`${API_URL}/experts/search`, {
         params: { query: searchQuery },
         headers
       });
-      setExperts(response.data);
+      if (!response.data || response.data.length === 0) {
+        // Ensure external experts are imported once, then try default list again
+        try {
+          await axios.post(`${API_URL}/experts/import-external`, {}, { headers });
+          const fallback = await axios.get(`${API_URL}/experts`, { headers });
+          setExperts(fallback.data || []);
+          return;
+        } catch {}
+      }
+      setExperts(response.data || []);
     } catch (error) {
       toast.error('Search failed');
     } finally {
