@@ -10,11 +10,14 @@ dotenv.config();
 initializeDB();
 
 const app = express();
+// Behind Render's proxy; needed for secure cookies and correct proto
+app.set('trust proxy', 1);
 
 // CORS configuration
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:3000',
-  'https://curalink-frontend-h970.onrender.com'
+  'https://curalink-frontend-h970.onrender.com',
+  'http://curalink-frontend-h970.onrender.com'
 ];
 
 const corsOptions = {
@@ -27,10 +30,10 @@ const corsOptions = {
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  // Let cors package reflect requested methods/headers by default to avoid preflight mismatches
   optionsSuccessStatus: 204,
-  preflightContinue: false
+  preflightContinue: false,
+  maxAge: 86400
 };
 
 // Middleware
