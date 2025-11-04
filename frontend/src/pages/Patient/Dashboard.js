@@ -407,7 +407,8 @@ const PatientDashboard = () => {
               <div className="profile-dropdown">
                 <div className="profile-dropdown-header">
                   <div className="profile-dropdown-icon">
-                    <div className="profile-dropdown-initial">{(profile?.name || 'U').charAt(0)}</div>
+                  <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSqIiMNmmzFEOEuoFjC4b-qaBQpgYeV-FwY2w&amp;s" alt="Profile" class="profile-image"/>
+                    {/* <div className="profile-dropdown-initial">{(profile?.name || 'U').charAt(0)}</div> */}
                   </div>
                   <div className="profile-dropdown-info">
                     <div className="profile-dropdown-name">{profile?.name || 'User'}</div>

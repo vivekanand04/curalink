@@ -253,14 +253,6 @@ const Forums = () => {
       <div className="forums-header">
         <h1>Forums</h1>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', position: 'relative' }}>
-          <div className="forums-actions" style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={() => setShowCategoryForm(true)} className="secondary-button">
-              Create Community
-            </button>
-            <button onClick={() => setShowPostForm(true)} className="primary-button">
-              Ask Question
-            </button>
-          </div>
           <button
             type="button"
             className="icon-button forums-actions-menu"
