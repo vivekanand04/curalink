@@ -11,7 +11,7 @@ router.get('/', authenticate, authorize('patient'), async (req, res) => {
        FROM health_experts he
        LEFT JOIN users u ON he.researcher_id = u.id
        LEFT JOIN researcher_profiles rp ON rp.user_id = he.researcher_id
-       WHERE he.is_platform_member = true OR he.researcher_id IS NOT NULL OR he.external_source IS NOT NULL
+       WHERE he.is_platform_member = true OR he.researcher_id IS NOT NULL
        ORDER BY he.is_platform_member DESC, he.researcher_id IS NOT NULL DESC, he.created_at DESC 
        LIMIT 50`
     );
@@ -26,6 +26,14 @@ router.get('/', authenticate, authorize('patient'), async (req, res) => {
 // Import external experts from publications authors if not present
 router.post('/import-external', authenticate, authorize('patient'), async (req, res) => {
   try {
+    // If any platform-joined researcher exists, skip importing externals entirely
+    const joined = await query(
+      `SELECT 1 FROM health_experts WHERE is_platform_member = true OR researcher_id IS NOT NULL LIMIT 1`
+    );
+    if (joined.rows.length > 0) {
+      return res.json({ inserted: 0, skipped: 'platform_joined_present' });
+    }
+
     const insert = await query(
       `INSERT INTO health_experts (name, specialties, research_interests, location, email, is_platform_member, external_source)
        SELECT DISTINCT a.name, ARRAY[]::text[], ARRAY[]::text[], NULL, NULL, false, 'publication'
@@ -91,7 +99,8 @@ router.get('/personalized', authenticate, authorize('patient'), async (req, res)
        FROM health_experts he
        LEFT JOIN users u ON he.researcher_id = u.id
        LEFT JOIN researcher_profiles rp ON rp.user_id = he.researcher_id
-       WHERE ${conditionPatterns}
+       WHERE (${conditionPatterns})
+         AND (he.is_platform_member = true OR he.researcher_id IS NOT NULL)
        ORDER BY he.is_platform_member DESC, he.created_at DESC 
        LIMIT 20`,
       params
@@ -130,7 +139,7 @@ router.get('/search', authenticate, authorize('patient'), async (req, res) => {
       paramIndex++;
     }
 
-    queryText += ' ORDER BY he.is_platform_member DESC LIMIT 20';
+    queryText += ' AND (he.is_platform_member = true OR he.researcher_id IS NOT NULL) ORDER BY he.is_platform_member DESC LIMIT 20';
 
     const result = await query(queryText, params);
     res.json(result.rows);
