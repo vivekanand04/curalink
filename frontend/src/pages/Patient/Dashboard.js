@@ -835,48 +835,48 @@ const PatientDashboard = () => {
                             </div>
                           </div>
                         ) : (
-                          <div key={expert.id} className="recommended-card modern-card expert-card">
-                            <div className="card-favorite-icon" onClick={() => handleToggleFavorite('expert', expert.id)}>
-                              <span className={`star-icon ${favorites[`expert_${expert.id}`] ? 'star-filled' : ''}`}>
-                                {favorites[`expert_${expert.id}`] ? '★' : '☆'}
-                              </span>
-                            </div>
-                            <h3 className="card-title">{expert.name || 'Expert'}</h3>
-                            <p className="card-affiliation">
-                              {expert.specialties && expert.specialties.length > 0 
-                                ? `${expert.specialties[0]}${expert.location ? ` at ${expert.location}` : ''}`
-                                : expert.location || 'Health Expert'}
-                            </p>
+                        <div key={expert.id} className="recommended-card modern-card expert-card">
+                          <div className="card-favorite-icon" onClick={() => handleToggleFavorite('expert', expert.id)}>
+                            <span className={`star-icon ${favorites[`expert_${expert.id}`] ? 'star-filled' : ''}`}>
+                              {favorites[`expert_${expert.id}`] ? '★' : '☆'}
+                            </span>
+                          </div>
+                          <h3 className="card-title">{expert.name || 'Expert'}</h3>
+                          <p className="card-affiliation">
+                            {expert.specialties && expert.specialties.length > 0 
+                              ? `${expert.specialties[0]}${expert.location ? ` at ${expert.location}` : ''}`
+                              : expert.location || 'Health Expert'}
+                          </p>
                             {expert.research_interests && expert.research_interests.length > 0 && (
-                              <>
-                                <p className="card-section-label">Research Interests:</p>
-                                <div className="interests-tags">
-                                  {expert.research_interests.slice(0, 2).map((interest, idx) => (
-                                    <span key={idx} className="interest-tag">{interest}</span>
-                                  ))}
-                                </div>
-                              </>
+                            <>
+                              <p className="card-section-label">Research Interests:</p>
+                              <div className="interests-tags">
+                                {expert.research_interests.slice(0, 2).map((interest, idx) => (
+                                  <span key={idx} className="interest-tag">{interest}</span>
+                                ))}
+                              </div>
+                            </>
                             )}
-                            <div className="card-actions-buttons">
-                              <button
-                                onClick={() => handleFollowExpert(expert.id)}
+                          <div className="card-actions-buttons">
+                            <button
+                              onClick={() => handleFollowExpert(expert.id)}
                                 className="follow-button"
                                 style={{ background: followingExperts.has(expert.id) ? '#34A853' : undefined }}
-                              >
+                            >
                                 {followingExperts.has(expert.id) ? 'Following' : 'Follow'}
+                            </button>
+                            {expert.is_platform_member && (
+                              <button
+                                onClick={() => setShowMeetingModal(expert.id)}
+                                className="request-meeting-button"
+                              >
+                                Request Meeting
                               </button>
-                              {expert.is_platform_member && (
-                                <button
-                                  onClick={() => setShowMeetingModal(expert.id)}
-                                  className="request-meeting-button"
-                                >
-                                  Request Meeting
-                                </button>
-                              )}
-                            </div>
+                            )}
+                          </div>
                           </div>
                         )
-                      ))}
+                        ))}
                     </div>
                   </div>
                 ) : (

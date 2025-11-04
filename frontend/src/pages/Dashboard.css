@@ -20,6 +20,8 @@
   
   }
 
+
+
   /* Collaborators search: wrap & move All Specialties to next line */
   .dashboard-container.researcher .collaborators-section .search-bar {
     flex-wrap: wrap;
@@ -37,6 +39,8 @@
     width: 40px;
     min-width: 40px;
     padding: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
   }
   .dashboard-container.researcher .collaborators-section .all-specialties {
     width: 100%;
@@ -78,6 +82,12 @@
     cursor: pointer;
     margin-left: auto;
   }
+  .auth-progress-dot-end {
+    width: 15px;
+    height: 15px;
+    border-radius: 100%;
+  
+}
   .dashboard-container.researcher .forums-actions-dropdown {
     position: absolute;
     right: 0;

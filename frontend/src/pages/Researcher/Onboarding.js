@@ -103,6 +103,12 @@ const ResearcherOnboarding = () => {
   return (
     <div className="dashboard-container">
       <div className="dashboard-content">
+        <div style={{ height: 6, background: '#eef1f7', borderRadius: 999, overflow: 'hidden', marginBottom: 12, position: 'relative' }} aria-hidden>
+          <div style={{ height: '100%', width: '66%', background: 'linear-gradient(90deg,#667eea 0%, #34A853 100%)', borderRadius: 999 }} />
+          <div style={{ position: 'absolute', top: '50%', left: '33%', transform: 'translate(-50%, -50%)', width: 14, height: 14, borderRadius: 999, background: '#fff', border: '2px solid #cbd5e1', boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }} />
+          <div style={{ position: 'absolute', top: '50%', left: '66%', transform: 'translate(-50%, -50%)', width: 10, height: 10, borderRadius: 999, background: '#fff', border: '2px solid #cbd5e1' }} />
+        </div>
+        
         <h1>Complete Your Researcher Profile</h1>
         <p className="subtitle">Help us connect you with relevant opportunities</p>
 

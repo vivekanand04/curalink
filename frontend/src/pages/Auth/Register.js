@@ -56,19 +56,30 @@ const Register = () => {
   return (
     <div className="auth-page">
       <div className="auth-container">
+        <div className="auth-progress-track" aria-hidden>
+          <div className="auth-progress-bar" style={{ width: '33%' }} />
+          <div className="auth-progress-dot" style={{ left: '33%' }} />
+          <div className="auth-progress-dot-end" style={{ left: '66%' }} />
+        </div>
         <h1>Create Your Account</h1>
+        <p className="auth-subtitle">Join CuraLink to discover trials, experts, and publications</p>
+        <div className="user-type-toggle" role="group" aria-label="Select account type">
+          <button
+            type="button"
+            className={`user-type-option ${userType === 'patient' ? 'active' : ''}`}
+            onClick={() => setUserType('patient')}
+          >
+            Patient / Caregiver
+          </button>
+          <button
+            type="button"
+            className={`user-type-option ${userType === 'researcher' ? 'active' : ''}`}
+            onClick={() => setUserType('researcher')}
+          >
+            Researcher
+          </button>
+        </div>
         <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label>I am a</label>
-            <select
-              value={userType}
-              onChange={(e) => setUserType(e.target.value)}
-              className="form-select"
-            >
-              <option value="patient">Patient or Caregiver</option>
-              <option value="researcher">Researcher</option>
-            </select>
-          </div>
           <div className="form-group">
             <label>Email</label>
             <input

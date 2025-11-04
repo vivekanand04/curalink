@@ -117,7 +117,7 @@ const HealthExperts = () => {
       }
     } catch {
       toast.error('Failed to update favourites');
-    }
+      }
   };
 
   const handleNudge = (expertId) => {
@@ -243,12 +243,12 @@ const HealthExperts = () => {
                   </>
                 ) : (
                   expert.is_platform_member && (
-                    <button
-                      onClick={() => setShowMeetingModal(expert.id)}
-                      className="request-meeting-button"
-                    >
-                      Request Meeting
-                    </button>
+                  <button
+                    onClick={() => setShowMeetingModal(expert.id)}
+                    className="request-meeting-button"
+                  >
+                    Request Meeting
+                  </button>
                   )
                 )}
               </div>

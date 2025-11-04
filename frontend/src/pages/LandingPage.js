@@ -9,10 +9,16 @@ const LandingPage = () => {
     <div className="landing-page">
       <div className="landing-container">
         <div className="landing-content">
+          <div className="lp-progress-track" aria-hidden>
+            <div className="lp-progress-bar" style={{ width: '0%' }} />
+            <div className="lp-progress-dot" style={{ left: '33%' }} />
+            <div className="lp-progress-dot-end" style={{ left: '66%' }} />
+          </div>
           <h1 className="landing-title">Welcome to CuraLink</h1>
           <p className="landing-subtitle">
-            Connecting patients, caregivers, and researchers to discover clinical trials, 
-            medical publications, and health experts
+            Empowering Health Connections.
+            <br />
+            AI-Driven Insights for Patients & Researchers.
           </p>
           
           <div className="cta-buttons">
@@ -20,28 +26,31 @@ const LandingPage = () => {
               className="cta-button patient-cta"
               onClick={() => navigate('/register?type=patient')}
             >
-              I am a Patient or Caregiver
+              Find Support & Solutions
             </button>
             <button 
               className="cta-button researcher-cta"
               onClick={() => navigate('/register?type=researcher')}
             >
-              I am a Researcher
+              Advance Research
             </button>
           </div>
 
           <div className="landing-features">
             <div className="feature-card">
+              <div style={{ fontSize: 28, marginBottom: 10 }}>🧪</div>
               <h3>Clinical Trials</h3>
-              <p>Discover relevant clinical trials based on your condition</p>
+              <p>Discover relevant trials based on your condition</p>
             </div>
             <div className="feature-card">
+              <div style={{ fontSize: 28, marginBottom: 10 }}>🧑‍⚕️</div>
               <h3>Health Experts</h3>
-              <p>Connect with specialists and researchers in your field</p>
+              <p>Connect with specialists and researchers</p>
             </div>
             <div className="feature-card">
+              <div style={{ fontSize: 28, marginBottom: 10 }}>📖</div>
               <h3>Publications</h3>
-              <p>Access the latest medical research and publications</p>
+              <p>Access the latest medical research</p>
             </div>
           </div>
 
