@@ -180,8 +180,17 @@
 }
 
 @media (max-width: 768px) {
+  .landing-page {
+    overflow: auto; /* allow scroll so top progress and footer are reachable */
+  }
+
+  .landing-container {
+    align-items: flex-start; /* avoid vertical centering cutting off top/bottom */
+  }
+
   .landing-content {
     padding: 24px 16px;
+    margin-top: 10px;
   }
 
   .landing-title {
