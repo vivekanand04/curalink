@@ -1509,6 +1509,7 @@
 }
 
 .primary-button {
+  display:none;
   padding: 11px 22px;
   background: #1a1a1a;
   color: white;
@@ -1524,6 +1525,7 @@
 }
 
 .secondary-button {
+  display:none;
   padding: 11px 22px;
   background: white;
   color: #1a1a1a;
