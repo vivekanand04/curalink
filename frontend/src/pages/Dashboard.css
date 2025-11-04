@@ -190,10 +190,24 @@
 
 .nav-user {
   display: flex;
-  align-items: center;
-  gap: 15px;
+ 
+  gap: 5px;
   color: #666;
   position: relative;
+}
+
+/* Role label next to avatar */
+.nav-user .role-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+ 
+ 
+  background: #ffffff;
+  color: #4b5563;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1;
 }
 
 /* Profile Dropdown */
@@ -2392,6 +2406,11 @@
 
   .nav-user span {
     font-size: 0.9rem;
+  }
+
+  .nav-user .role-chip {
+    font-size: 0.85rem;
+    padding: 5px 8px;
   }
 
   /* Patient mobile search: keep input and right arrow on one row */
