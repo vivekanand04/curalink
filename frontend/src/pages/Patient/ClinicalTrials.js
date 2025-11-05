@@ -12,10 +12,32 @@ const ClinicalTrials = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [expandedAISummaries, setExpandedAISummaries] = useState({});
+  const [favorites, setFavorites] = useState({});
 
   useEffect(() => {
     fetchTrials();
+    fetchFavorites();
   }, []);
+
+  const fetchFavorites = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      const response = await axios.get(`${API_URL}/favorites`, { headers });
+      const favoritesMap = {};
+      response.data.forEach(fav => {
+        if (fav.item_type === 'clinical_trial') {
+          favoritesMap[`clinical_trial_${fav.item_id}`] = true;
+        }
+      });
+      setFavorites(favoritesMap);
+    } catch (error) {
+      // Non-blocking: surface but do not break UI
+      console.error('Error fetching favorites:', error);
+    }
+  };
 
   const fetchTrials = async () => {
     setLoading(true);
@@ -57,20 +79,31 @@ const ClinicalTrials = () => {
     }
   };
 
-  const handleAddFavorite = async (trialId) => {
+  const handleToggleFavorite = async (trialId) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/favorites`, {
-        itemType: 'clinical_trial',
-        itemId: trialId,
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      toast.success('Added to favorites');
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const key = `clinical_trial_${trialId}`;
+
+      if (favorites[key]) {
+        // Remove
+        await axios.delete(`${API_URL}/favorites/clinical_trial/${trialId}`, { headers });
+        setFavorites(prev => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        toast.success('Removed from favorites');
+      } else {
+        // Add
+        await axios.post(`${API_URL}/favorites`, { itemType: 'clinical_trial', itemId: Number(trialId) }, { headers });
+        setFavorites(prev => ({ ...prev, [key]: true }));
+        toast.success('Added to favorites');
+      }
     } catch (error) {
-      toast.error('Failed to add to favorites');
+      console.error('Error toggling favorite:', error);
+      const message = error.response?.data?.message || 'Failed to update favorites';
+      toast.error(message);
     }
   };
 
@@ -134,8 +167,10 @@ const ClinicalTrials = () => {
         <div className="cards-grid">
           {trials.map((trial) => (
             <div key={trial.id} className="card modern-card trial-card">
-              <div className="card-favorite-icon" onClick={() => handleAddFavorite(trial.id)}>
-                <span className="star-icon">☆</span>
+              <div className="card-favorite-icon" onClick={() => handleToggleFavorite(trial.id)}>
+                <span className={`star-icon ${favorites[`clinical_trial_${trial.id}`] ? 'star-filled' : ''}`}>
+                  {favorites[`clinical_trial_${trial.id}`] ? '★' : '☆'}
+                </span>
               </div>
               <h3 className="card-title">{trial.title}</h3>
               <p className="card-scope">{trial.location || 'Global'}</p>

@@ -11,6 +11,8 @@ const PublicationsManage = () => {
   const [editingPublication, setEditingPublication] = useState(null);
   const [loading, setLoading] = useState(false);
   const [favorites, setFavorites] = useState({});
+  const [favoritesByDoi, setFavoritesByDoi] = useState({}); // for items without numeric id
+  const [doiToPublicationId, setDoiToPublicationId] = useState({}); // map DOI->db id
   const [expandedAISummaries, setExpandedAISummaries] = useState({});
   const [formData, setFormData] = useState({
     title: '',
@@ -126,41 +128,108 @@ const PublicationsManage = () => {
     }
   };
 
-  const handleToggleFavorite = async (pubId) => {
+  const resolveDbPublicationId = async (pub) => {
+    const numericId = Number(pub?.id);
+    if (Number.isInteger(numericId) && numericId > 0) return numericId;
+
+    const token = localStorage.getItem('token');
+    const headers = { 'Authorization': `Bearer ${token}` };
+    const doiKey = (pub?.doi || '').trim().toLowerCase();
+    const titleKey = (pub?.title || '').trim().toLowerCase();
+
+    // 1) known mapping
+    if (doiKey && doiToPublicationId[doiKey]) return doiToPublicationId[doiKey];
+
+    // 2) look up in DB by DOI or title
+    try {
+      const allRes = await axios.get(`${API_URL}/publications`, { headers });
+      const all = Array.isArray(allRes.data) ? allRes.data : [];
+      let found = null;
+      if (doiKey) {
+        found = all.find(p => (p.doi || '').trim().toLowerCase() === doiKey);
+      }
+      if (!found && titleKey) {
+        found = all.find(p => (p.title || '').trim().toLowerCase() === titleKey);
+      }
+      if (found?.id) {
+        const idNum = Number(found.id);
+        if (Number.isInteger(idNum) && idNum > 0) {
+          if (doiKey) setDoiToPublicationId(prev => ({ ...prev, [doiKey]: idNum }));
+          return idNum;
+        }
+      }
+    } catch (_) {
+      // ignore lookup failure; we will try create
+    }
+
+    // 3) create minimal DB record then return its id
+    try {
+      const payload = {
+        title: pub?.title || 'Untitled',
+        authors: Array.isArray(pub?.authors) ? pub.authors : (pub?.authors ? [pub.authors] : []),
+        journal: pub?.journal || null,
+        publicationDate: pub?.publication_date || null,
+        doi: pub?.doi || null,
+        abstract: pub?.abstract || null,
+        fullTextUrl: pub?.full_text_url || null,
+      };
+      const createRes = await axios.post(`${API_URL}/publications`, payload, { headers });
+      const newId = Number(createRes.data?.id);
+      if (Number.isInteger(newId) && newId > 0) {
+        if ((pub?.doi || '').trim()) {
+          const key = (pub.doi || '').trim().toLowerCase();
+          setDoiToPublicationId(prev => ({ ...prev, [key]: newId }));
+        }
+        return newId;
+      }
+    } catch (e) {
+      console.error('Failed to create DB record for publication before favoriting:', e);
+      toast.error('Could not prepare publication to like');
+    }
+
+    return null;
+  };
+
+  const handleToggleFavorite = async (pubOrId) => {
     try {
       const token = localStorage.getItem('token');
-      const isFavorite = favorites[`publication_${pubId}`];
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const pub = typeof pubOrId === 'object' ? pubOrId : { id: pubOrId };
+      const numericId = await resolveDbPublicationId(pub);
+      if (!numericId) return; // error already toasted
+
+      // Determine current fav state (id-based if numeric, else DOI/title-based)
+      const idKey = `publication_${numericId}`;
+      const doiKey = (pub?.doi || '').trim().toLowerCase();
+      const titleKey = (pub?.title || '').trim().toLowerCase();
+      const nonIdKey = doiKey || titleKey || '';
+      const isFavorite = favorites[idKey] || (nonIdKey && favoritesByDoi[nonIdKey]);
       
       if (isFavorite) {
         // Remove from favorites
-        await axios.delete(`${API_URL}/favorites/publication/${pubId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        await axios.delete(`${API_URL}/favorites/publication/${numericId}`, { headers });
         setFavorites(prev => {
           const newFavs = { ...prev };
-          delete newFavs[`publication_${pubId}`];
+          delete newFavs[idKey];
           return newFavs;
         });
+        if (nonIdKey) setFavoritesByDoi(prev => ({ ...prev, [nonIdKey]: false }));
         toast.success('Removed from favorites');
       } else {
         // Add to favorites
         await axios.post(`${API_URL}/favorites`, {
           itemType: 'publication',
-          itemId: pubId,
-        }, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+          itemId: numericId,
+        }, { headers });
         setFavorites(prev => ({
           ...prev,
-          [`publication_${pubId}`]: true
+          [idKey]: true
         }));
+        if (nonIdKey) setFavoritesByDoi(prev => ({ ...prev, [nonIdKey]: true }));
         toast.success('Added to favorites');
       }
     } catch (error) {
+      console.error('Error toggling favorite (publication):', error);
       toast.error(error.response?.data?.message || 'Failed to update favorites');
     }
   };
@@ -400,10 +469,25 @@ const PublicationsManage = () => {
         <div className="cards-grid">
           {publications.map((pub) => (
             <div key={pub.id} className="card modern-card publication-card">
-              <div className="card-favorite-icon" onClick={() => handleToggleFavorite(pub.id)}>
-                <span className={`star-icon ${favorites[`publication_${pub.id}`] ? 'star-filled' : ''}`}>
-                  {favorites[`publication_${pub.id}`] ? '★' : '☆'}
-                </span>
+              <div
+                className="card-favorite-icon"
+                onClick={() => handleToggleFavorite(pub)}
+              >
+                {(() => {
+                  const numericId = Number(pub.id);
+                  const hasNumeric = Number.isInteger(numericId) && numericId > 0;
+                  const doiKey = (pub?.doi || '').trim().toLowerCase();
+                  const titleKey = (pub?.title || '').trim().toLowerCase();
+                  const nonIdKey = doiKey || titleKey || '';
+                  const isFav = hasNumeric
+                    ? !!favorites[`publication_${numericId}`]
+                    : !!favoritesByDoi[nonIdKey];
+                  return (
+                    <span className={`star-icon ${isFav ? 'star-filled' : ''}`}>
+                      {isFav ? '★' : '☆'}
+                    </span>
+                  );
+                })()}
               </div>
               <h3 className="card-title">{pub.title}</h3>
               {pub.journal && pub.publication_date && (

@@ -10,10 +10,31 @@ const Publications = () => {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedAISummaries, setExpandedAISummaries] = useState({});
+  const [favorites, setFavorites] = useState({});
 
   useEffect(() => {
     fetchPublications();
+    fetchFavorites();
   }, []);
+
+  const fetchFavorites = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      const response = await axios.get(`${API_URL}/favorites`, { headers });
+      const favoritesMap = {};
+      response.data.forEach(fav => {
+        if (fav.item_type === 'publication') {
+          favoritesMap[`publication_${fav.item_id}`] = true;
+        }
+      });
+      setFavorites(favoritesMap);
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+    }
+  };
 
   const fetchPublications = async () => {
     setLoading(true);
@@ -58,20 +79,29 @@ const Publications = () => {
     }
   };
 
-  const handleAddFavorite = async (pubId) => {
+  const handleToggleFavorite = async (pubId) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/favorites`, {
-        itemType: 'publication',
-        itemId: pubId,
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      toast.success('Added to favorites');
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const key = `publication_${pubId}`;
+
+      if (favorites[key]) {
+        await axios.delete(`${API_URL}/favorites/publication/${pubId}`, { headers });
+        setFavorites(prev => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        toast.success('Removed from favorites');
+      } else {
+        await axios.post(`${API_URL}/favorites`, { itemType: 'publication', itemId: Number(pubId) }, { headers });
+        setFavorites(prev => ({ ...prev, [key]: true }));
+        toast.success('Added to favorites');
+      }
     } catch (error) {
-      toast.error('Failed to add to favorites');
+      console.error('Error toggling favorite:', error);
+      const message = error.response?.data?.message || 'Failed to update favorites';
+      toast.error(message);
     }
   };
 
@@ -104,8 +134,10 @@ const Publications = () => {
         <div className="cards-grid">
           {publications.map((pub) => (
             <div key={pub.id} className="card modern-card publication-card">
-              <div className="card-favorite-icon" onClick={() => handleAddFavorite(pub.id)}>
-                <span className="star-icon">☆</span>
+              <div className="card-favorite-icon" onClick={() => handleToggleFavorite(pub.id)}>
+                <span className={`star-icon ${favorites[`publication_${pub.id}`] ? 'star-filled' : ''}`}>
+                  {favorites[`publication_${pub.id}`] ? '★' : '☆'}
+                </span>
               </div>
               <h3 className="card-title">{pub.title}</h3>
               {pub.journal && pub.publication_date && (
