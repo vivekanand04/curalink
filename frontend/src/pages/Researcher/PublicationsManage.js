@@ -344,7 +344,7 @@ const PublicationsManage = () => {
   };
 
   return (
-    <div className="page-content">
+    <div className="page-content researcher-publications-page">
       <div className="forums-header">
         <h1>Publications</h1>
         <button onClick={() => setShowForm(true)} className="primary-button">
@@ -503,14 +503,32 @@ const PublicationsManage = () => {
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
                 <div style={{ display: 'flex', gap: '15px' }}>
-                  <span className="action-link" onClick={() => handleViewPublication(pub)}>
-                    View
+                  <span className="action-link" onClick={() => handleViewPublication(pub)} aria-label="View">
+                    <span className="action-icon" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 5C7 5 2.73 8.11 1 12c1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Z" fill="currentColor"/>
+                        <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                      </svg>
+                    </span>
+                    <span className="action-label">View</span>
                   </span>
-                  <span className="action-link" onClick={() => handleEdit(pub)}>
-                    Edit
+                  <span className="action-link" onClick={() => handleEdit(pub)} aria-label="Edit">
+                    <span className="action-icon" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Z" fill="currentColor"/>
+                        <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82Z" fill="currentColor"/>
+                      </svg>
+                    </span>
+                    <span className="action-label">Edit</span>
                   </span>
-                  <span className="action-link" onClick={() => handleDelete(pub.id)} style={{ color: '#dc3545' }}>
-                    Delete
+                  <span className="action-link" onClick={() => handleDelete(pub.id)} style={{ color: '#dc3545' }} aria-label="Delete">
+                    <span className="action-icon" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 7h12l-1 13H7L6 7Z" fill="currentColor"/>
+                        <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2h3v2H6V7h3Zm2 0h2V5h-2v2Z" fill="currentColor"/>
+                      </svg>
+                    </span>
+                    <span className="action-label">Delete</span>
                   </span>
                 </div>
                 <span className="action-link" onClick={() => toggleAISummary(pub.id)}>
