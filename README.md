@@ -1,6 +1,7 @@
 # CuraLink - Clinical Trials & Research Platform
 
 CuraLink is an AI-powered platform designed to connect patients, caregivers, and researchers by simplifying the discovery of clinical trials, medical publications, and health experts.
+
 LIVE : https://curalink-frontend-h970.onrender.com
 ## 🎯 Features
 
