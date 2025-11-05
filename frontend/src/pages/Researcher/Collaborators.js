@@ -124,6 +124,21 @@ const Collaborators = () => {
     }
   };
 
+  const handleDisconnect = async (collaboratorId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_URL}/collaborators/${collaboratorId}/connect`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      toast.success('Disconnected');
+      fetchConnections();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to disconnect');
+    }
+  };
+
   const handleAcceptReject = async (connectionId, status) => {
     try {
       const token = localStorage.getItem('token');
@@ -438,7 +453,7 @@ const Collaborators = () => {
                     </div>
                     <div className="collab-card-actions">
                       {connectionStatus === 'accepted' ? (
-                        <button className="collab-button-primary" disabled>Connected</button>
+                        <button className="collab-button-primary" onClick={() => handleDisconnect(collaborator.user_id)}>Disconnect</button>
                       ) : connectionStatus === 'incoming_pending' ? (
                         <button className="collab-button-primary" onClick={() => handleAcceptRequest(collaborator.user_id)}>Accept Request</button>
                       ) : connectionStatus === 'outgoing_pending' ? (

@@ -77,6 +77,31 @@ router.post('/:id/connect', authenticate, authorize('researcher'), async (req, r
   }
 });
 
+// Disconnect (remove connection in any state)
+router.delete('/:id/connect', authenticate, authorize('researcher'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const me = req.user.userId;
+    const other = parseInt(id);
+
+    if (me === other) {
+      return res.status(400).json({ message: 'Invalid operation' });
+    }
+
+    await query(
+      `DELETE FROM collaborator_connections 
+       WHERE (requester_id = $1 AND receiver_id = $2) 
+          OR (requester_id = $2 AND receiver_id = $1)`,
+      [me, other]
+    );
+
+    return res.json({ message: 'Disconnected successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Get connection requests
 router.get('/connections', authenticate, authorize('researcher'), async (req, res) => {
   try {
