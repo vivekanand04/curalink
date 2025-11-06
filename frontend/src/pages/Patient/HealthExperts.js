@@ -169,7 +169,8 @@ const HealthExperts = () => {
           localStorage.setItem('meetingRequests', JSON.stringify(stored));
         } catch {}
       } else {
-        toast.info('Researcher is not active to accept meetings; request sent to OWNER successfully.');
+        // Researcher is registered but has meeting notifications turned off: still send to the researcher
+        toast.success(`Request sent to ${expertName} successfully.`);
       }
     } catch (error) {
       toast.error('Failed to send meeting request');

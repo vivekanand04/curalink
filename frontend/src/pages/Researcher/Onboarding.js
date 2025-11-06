@@ -201,7 +201,7 @@ const ResearcherOnboarding = () => {
                 <small>We'll auto-import your academic contributions</small>
               </div>
               <div className="form-group">
-                <label>
+                <label className="checkbox-inline">
                   <input
                     type="checkbox"
                     checked={formData.availabilityForMeetings}

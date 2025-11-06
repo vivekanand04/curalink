@@ -1769,6 +1769,18 @@
   margin-top: 30px;
 }
 
+.onboarding-form .checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  white-space: normal;
+}
+
+.onboarding-form .checkbox-inline input[type="checkbox"] {
+  width: auto;
+}
+
 .meeting-form {
   margin-top: 20px;
   padding: 20px;

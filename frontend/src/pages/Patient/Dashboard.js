@@ -188,7 +188,8 @@ const PatientDashboard = () => {
           localStorage.setItem('meetingRequests', JSON.stringify(stored));
         } catch {}
       } else {
-        toast.info('Researcher is not active to accept meetings; request sent to OWNER successfully.');
+        // Researcher is registered but has meeting notifications turned off: still send to the researcher
+        toast.success(`Request sent to ${expertName} successfully.`);
       }
       setShowMeetingModal(null);
       setMeetingForm({ patientName: '', patientContact: '', message: '' });
