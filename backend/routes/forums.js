@@ -125,11 +125,11 @@ router.get('/posts/:postId', authenticate, async (req, res) => {
   }
 });
 
-// Reply to post (only researchers)
+// Reply to post (only researchers) - supports threaded replies via optional parentReplyId
 router.post('/posts/:postId/replies', authenticate, authorize('researcher'), async (req, res) => {
   try {
     const { postId } = req.params;
-    const { content } = req.body;
+    const { content, parentReplyId } = req.body;
     const userId = req.user.userId;
 
     // Verify post exists
@@ -138,9 +138,20 @@ router.post('/posts/:postId/replies', authenticate, authorize('researcher'), asy
       return res.status(404).json({ message: 'Post not found' });
     }
 
+    // If replying to another reply, ensure the parent reply exists and belongs to the same post
+    if (parentReplyId) {
+      const parentResult = await query('SELECT id, post_id FROM forum_replies WHERE id = $1', [parentReplyId]);
+      if (parentResult.rows.length === 0) {
+        return res.status(400).json({ message: 'Parent reply not found' });
+      }
+      if (String(parentResult.rows[0].post_id) !== String(postId)) {
+        return res.status(400).json({ message: 'Parent reply does not belong to this post' });
+      }
+    }
+
     const result = await query(
-      'INSERT INTO forum_replies (post_id, user_id, content) VALUES ($1, $2, $3) RETURNING *',
-      [postId, userId, content]
+      'INSERT INTO forum_replies (post_id, user_id, content, parent_reply_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [postId, userId, content, parentReplyId || null]
     );
 
     res.status(201).json(result.rows[0]);

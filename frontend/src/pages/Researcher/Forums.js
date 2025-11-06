@@ -26,6 +26,10 @@ const Forums = () => {
   const [replyContent, setReplyContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [openInlineReply, setOpenInlineReply] = useState({}); // { [replyId]: true }
+  const [inlineReplyContent, setInlineReplyContent] = useState({}); // { [replyId]: 'text' }
+  const [quickReplyOpenByPost, setQuickReplyOpenByPost] = useState({}); // { [postId]: bool }
+  const [quickReplyContentByPost, setQuickReplyContentByPost] = useState({}); // { [postId]: string }
 
   useEffect(() => {
     fetchCategories();
@@ -159,6 +163,51 @@ const Forums = () => {
     }
   };
 
+  const handleInlineReplySubmit = async (parentReplyId) => {
+    const content = (inlineReplyContent[parentReplyId] || '').trim();
+    if (!content) {
+      toast.error('Please enter a reply');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/forums/posts/${selectedPost.post.id}/replies`, {
+        content,
+        parentReplyId,
+      }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      toast.success('Reply posted successfully');
+      setInlineReplyContent(prev => ({ ...prev, [parentReplyId]: '' }));
+      setOpenInlineReply(prev => ({ ...prev, [parentReplyId]: false }));
+      fetchPostDetails(selectedPost.post.id);
+    } catch (error) {
+      toast.error('Failed to post reply');
+    }
+  };
+
+  const handleQuickReplySubmitForPost = async (postId) => {
+    const content = (quickReplyContentByPost[postId] || '').trim();
+    if (!content) {
+      toast.error('Please enter a reply');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/forums/posts/${postId}/replies`, { content }, { headers: { 'Authorization': `Bearer ${token}` } });
+      toast.success('Reply posted successfully');
+      setQuickReplyContentByPost(prev => ({ ...prev, [postId]: '' }));
+      setQuickReplyOpenByPost(prev => ({ ...prev, [postId]: false }));
+      if (selectedPost?.post?.id === postId) {
+        fetchPostDetails(postId);
+      } else {
+        fetchAllPosts();
+      }
+    } catch (e) {
+      toast.error('Failed to post reply');
+    }
+  };
+
   const handleCancelCategoryForm = () => {
     setShowCategoryForm(false);
     setCategoryForm({ name: '', description: '' });
@@ -202,6 +251,38 @@ const Forums = () => {
                   {reply.name || 'Researcher'} | {new Date(reply.created_at).toLocaleDateString()}
                 </p>
                 <p className="reply-content">{reply.content}</p>
+                <div style={{ marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenInlineReply(prev => ({ ...prev, [reply.id]: !prev[reply.id] }))}
+                    className="secondary-button"
+                    style={{ background: '#f6f7f9', color: '#334155', border: '1px solid #e5e7eb', padding: '6px 10px', borderRadius: '6px' }}
+                  >
+                    Reply
+                  </button>
+                </div>
+                {openInlineReply[reply.id] && (
+                  <div className="reply-form" style={{ marginTop: '10px' }}>
+                    <textarea
+                      value={inlineReplyContent[reply.id] || ''}
+                      onChange={(e) => setInlineReplyContent(prev => ({ ...prev, [reply.id]: e.target.value }))}
+                      placeholder="Write your reply..."
+                      rows="3"
+                      style={{ width: '100%', padding: '10px', marginBottom: '8px', borderRadius: '8px', border: '1px solid #d0d0d0', fontFamily: 'inherit' }}
+                    />
+                    <div className="form-actions">
+                      <button
+                        onClick={() => setOpenInlineReply(prev => ({ ...prev, [reply.id]: false }))}
+                        className="secondary-button"
+                      >
+                        Cancel
+                      </button>
+                      <button onClick={() => handleInlineReplySubmit(reply.id)} className="primary-button">
+                        Post Reply
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -470,7 +551,29 @@ const Forums = () => {
                   <p className="post-body-reddit">{post.content}</p>
                   <div className="post-footer-reddit">
                     <span className="post-comment-link">{post.reply_count || 0} comments</span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setQuickReplyOpenByPost(prev => ({ ...prev, [post.id]: !prev[post.id] })); }}
+                      style={{ marginLeft: '15px', background: 'transparent', border: 'none', color: '#787c7e', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                    >
+                      Reply
+                    </button>
                   </div>
+                  {quickReplyOpenByPost[post.id] && (
+                    <div className="reply-form" style={{ marginTop: '10px' }} onClick={(e) => e.stopPropagation()}>
+                      <textarea
+                        rows="3"
+                        placeholder="Write your reply..."
+                        value={quickReplyContentByPost[post.id] || ''}
+                        onChange={(e) => setQuickReplyContentByPost(prev => ({ ...prev, [post.id]: e.target.value }))}
+                        style={{ width: '100%', padding: '10px', marginBottom: '8px', borderRadius: '8px', border: '1px solid #d0d0d0', fontFamily: 'inherit' }}
+                      />
+                      <div className="form-actions">
+                        <button className="secondary-button" onClick={(e) => { e.stopPropagation(); setQuickReplyOpenByPost(prev => ({ ...prev, [post.id]: false })); }}>Cancel</button>
+                        <button className="primary-button" onClick={(e) => { e.stopPropagation(); handleQuickReplySubmitForPost(post.id); }}>Post Reply</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

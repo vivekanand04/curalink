@@ -1,3 +1,12 @@
+/* Visibility helpers for mobile vs desktop */
+@media (max-width: 768px) {
+  .show-mobile { display: inline-flex !important; }
+  .show-desktop { display: none !important; }
+}
+@media (min-width: 769px) {
+  .show-mobile { display: none !important; }
+  .show-desktop { display: inline !important; }
+}
 /* Researcher ultra-small screens */
 @media (max-width: 440px) {
   /* Navbar/profile alignment for researcher */
@@ -2744,6 +2753,32 @@
   margin-left: auto;
 }
 
+/* Mobile-only: Publications (Researcher) action links use icons, add button smaller */
+@media (max-width: 768px) {
+  .dashboard-container.researcher .publications-manage-page .publication-card .card-actions-row .action-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    border-radius: 6px;
+    min-width: 40px;
+    height: 36px;
+  }
+  .dashboard-container.researcher .publications-manage-page .action-link .action-text {
+    display: none;
+  }
+  .dashboard-container.researcher .publications-manage-page .action-link .action-icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+  .dashboard-container.researcher .publications-manage-page .forums-header .primary-button {
+    padding: 8px 14px;
+    font-size: 0.9rem;
+    margin-left: 8px;
+    margin-right: 8px;
+  }
+}
+
 /* AI Summary Inline Container */
 .ai-summary-container {
   margin-top: 16px;
@@ -3806,29 +3841,6 @@ padding-bottom: 10px;
     border-radius: 6px;
     background: white;
     font-size: 0.95rem;
-  }
-}
-
-/* Researcher Publications: show icons only on mobile for action links */
-.researcher-publications-page .action-icon {
-  display: none;
-  margin-right: 6px;
-  line-height: 0;
-}
-.researcher-publications-page .action-label {
-  display: inline;
-}
-
-@media (max-width: 768px) {
-  .researcher-publications-page .publication-card .action-label {
-    display: none;
-  }
-  .researcher-publications-page .publication-card .action-icon {
-    display: inline-flex;
-    width: 18px;
-    height: 18px;
-    align-items: center;
-    justify-content: center;
   }
 }
 

@@ -249,6 +249,25 @@ const initializeDB = async () => {
       console.error('Error adding columns to clinical_trials:', error.message);
     }
 
+    // Add parent_reply_id to forum_replies for threaded replies if it doesn't exist
+    try {
+      const checkParent = await pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='forum_replies' AND column_name='parent_reply_id'
+      `);
+      if (checkParent.rows.length === 0) {
+        await pool.query(`
+          ALTER TABLE forum_replies 
+          ADD COLUMN parent_reply_id INTEGER REFERENCES forum_replies(id) ON DELETE CASCADE
+        `);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_forum_replies_parent ON forum_replies(parent_reply_id)`);
+        console.log('Added parent_reply_id column to forum_replies table');
+      }
+    } catch (error) {
+      console.error('Error adding parent_reply_id to forum_replies:', error.message);
+    }
+
     // Initialize default forum categories
     const defaultCategories = [
       { name: 'Cancer Research', description: 'Discussions about cancer research, treatments, and clinical trials' },

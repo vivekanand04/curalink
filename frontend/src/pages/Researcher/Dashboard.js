@@ -16,7 +16,9 @@ import AccountTypeModal from '../../components/AccountTypeModal';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const ResearcherDashboard = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    try { return localStorage.getItem('researcherActiveTab') || 'dashboard'; } catch { return 'dashboard'; }
+  });
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
@@ -42,6 +44,11 @@ const ResearcherDashboard = () => {
     }
   });
   const navigate = useNavigate();
+
+  // Persist active tab across refreshes
+  useEffect(() => {
+    try { localStorage.setItem('researcherActiveTab', activeTab); } catch {}
+  }, [activeTab]);
 
   useEffect(() => {
     fetchProfile();
@@ -183,6 +190,29 @@ const ResearcherDashboard = () => {
       setConnectionPending(pendingMap);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+    }
+  };
+
+  // Quick reply state for recent discussions cards
+  const [quickReplyOpen, setQuickReplyOpen] = useState({}); // { [postId]: bool }
+  const [quickReplyContent, setQuickReplyContent] = useState({}); // { [postId]: string }
+
+  const handleQuickReplySubmit = async (postId) => {
+    const content = (quickReplyContent[postId] || '').trim();
+    if (!content) {
+      toast.error('Please enter a reply');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/forums/posts/${postId}/replies`, { content }, { headers: { 'Authorization': `Bearer ${token}` } });
+      toast.success('Reply posted');
+      setQuickReplyContent(prev => ({ ...prev, [postId]: '' }));
+      setQuickReplyOpen(prev => ({ ...prev, [postId]: false }));
+      // refresh recent posts count
+      setRecentPosts(prev => prev.map(p => p.id === postId ? { ...p, reply_count: (parseInt(p.reply_count || 0, 10) + 1) } : p));
+    } catch (e) {
+      toast.error('Failed to post reply');
     }
   };
 
@@ -747,7 +777,7 @@ const ResearcherDashboard = () => {
                             <div className="vote-count">{post.reply_count || 0}</div>
                             <div className="vote-arrow-down">▼</div>
                           </div>
-                          <div className="post-content-section">
+                      <div className="post-content-section">
                             <div className="post-header-reddit">
                               <span className="post-category-badge-reddit">{post.category_name}</span>
                               <span className="post-author-reddit">by {post.author_name || 'User'}</span>
@@ -757,7 +787,29 @@ const ResearcherDashboard = () => {
                             <p className="post-body-reddit">{post.content}</p>
                             <div className="post-footer-reddit">
                               <span className="post-comment-link">{post.reply_count || 0} comments</span>
+                              <button
+                                type="button"
+                                onClick={() => setQuickReplyOpen(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
+                                style={{ marginLeft: '15px', background: 'transparent', border: 'none', color: '#787c7e', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                              >
+                                Reply
+                              </button>
                             </div>
+                          {quickReplyOpen[post.id] && (
+                            <div className="reply-form" style={{ marginTop: '10px' }}>
+                              <textarea
+                                rows="3"
+                                placeholder="Write your reply..."
+                                value={quickReplyContent[post.id] || ''}
+                                onChange={(e) => setQuickReplyContent(prev => ({ ...prev, [post.id]: e.target.value }))}
+                                style={{ width: '100%', padding: '10px', marginBottom: '8px', borderRadius: '8px', border: '1px solid #d0d0d0', fontFamily: 'inherit' }}
+                              />
+                              <div className="form-actions">
+                                <button className="secondary-button" onClick={() => setQuickReplyOpen(prev => ({ ...prev, [post.id]: false }))}>Cancel</button>
+                                <button className="primary-button" onClick={() => handleQuickReplySubmit(post.id)}>Post Reply</button>
+                              </div>
+                            </div>
+                          )}
                           </div>
                         </div>
                       ))

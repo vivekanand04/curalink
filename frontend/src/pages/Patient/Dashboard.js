@@ -15,7 +15,9 @@ import AccountTypeModal from '../../components/AccountTypeModal';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const PatientDashboard = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    try { return localStorage.getItem('patientActiveTab') || 'dashboard'; } catch { return 'dashboard'; }
+  });
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
@@ -45,6 +47,11 @@ const PatientDashboard = () => {
   const [nudgedImportedExperts, setNudgedImportedExperts] = useState(() => new Set());
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Persist active tab across refreshes
+  useEffect(() => {
+    try { localStorage.setItem('patientActiveTab', activeTab); } catch {}
+  }, [activeTab]);
 
   useEffect(() => {
     fetchProfile();
