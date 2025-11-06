@@ -11,6 +11,7 @@ import Forums from './Forums';
 import Favorites from './Favorites';
 import ProfileModal from '../../components/ProfileModal';
 import AccountTypeModal from '../../components/AccountTypeModal';
+import { formatAISummary } from '../../utils/aiSummary';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -690,7 +691,7 @@ const PatientDashboard = () => {
                           {expandedAISummaries[`trial_${trial.id}`] && trial.ai_summary && (
                             <div className="ai-summary-container">
                               <div className="ai-summary-content">
-                                {trial.ai_summary}
+                                {formatAISummary(trial.ai_summary)}
                               </div>
                             </div>
                           )}
@@ -766,7 +767,7 @@ const PatientDashboard = () => {
                           {expandedAISummaries[`pub_${pub.id}`] && pub.ai_summary && (
                             <div className="ai-summary-container">
                               <div className="ai-summary-content">
-                                {pub.ai_summary}
+                              {formatAISummary(pub.ai_summary)}
                               </div>
                             </div>
                           )}

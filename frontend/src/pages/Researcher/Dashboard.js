@@ -12,6 +12,7 @@ import MeetingRequests from './MeetingRequests';
 import Favorites from './Favorites';
 import ProfileModal from '../../components/ProfileModal';
 import AccountTypeModal from '../../components/AccountTypeModal';
+import { formatAISummary } from '../../utils/aiSummary';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -646,7 +647,7 @@ const ResearcherDashboard = () => {
                       {expandedAISummaries[trial.id] && trial.ai_summary && (
                         <div className="ai-summary-container">
                           <div className="ai-summary-content">
-                            {trial.ai_summary}
+                            {formatAISummary(trial.ai_summary)}
                           </div>
                         </div>
                       )}
