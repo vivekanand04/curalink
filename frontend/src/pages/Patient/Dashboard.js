@@ -11,7 +11,7 @@ import Forums from './Forums';
 import Favorites from './Favorites';
 import ProfileModal from '../../components/ProfileModal';
 import AccountTypeModal from '../../components/AccountTypeModal';
-import { formatAISummary } from '../../utils/aiSummary';
+import { formatAISummary, createTruncatedDescription } from '../../utils/aiSummary';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -142,6 +142,34 @@ const PatientDashboard = () => {
       try { localStorage.setItem('followingExperts', JSON.stringify(Array.from(next))); } catch {}
       return next;
     });
+  };
+
+  const togglePublicationAISummary = async (pubId, pub) => {
+    const isCurrentlyExpanded = expandedAISummaries[`pub_${pubId}`];
+
+    if (!isCurrentlyExpanded && !pub.ai_summary) {
+      // Generate AI summary on-demand if it doesn't exist
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.post(`${API_URL}/publications/${pubId}/generate-ai-summary`, {}, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        // Update the publication with the new AI summary
+        setPublications(prev => prev.map(p =>
+          p.id === pubId ? { ...p, ai_summary: response.data.ai_summary } : p
+        ));
+      } catch (error) {
+        console.error('Failed to generate AI summary:', error);
+        toast.error('Failed to generate AI summary');
+        return;
+      }
+    }
+
+    setExpandedAISummaries(prev => ({
+      ...prev,
+      [`pub_${pubId}`]: !prev[`pub_${pubId}`]
+    }));
   };
 
   const [showMeetingModal, setShowMeetingModal] = useState(null);
@@ -395,7 +423,7 @@ const PatientDashboard = () => {
           <div className="nav-brand">CuraLink</div>
         </div>
         <div className="nav-user">
-          <span className="role-chip">Patient/Caregiver</span>
+          <span className="role-chip show-desktop">Patient/Caregiver</span>
           <div className="profile-dropdown-container">
             <button 
               className="profile-icon-button"
@@ -667,9 +695,10 @@ const PatientDashboard = () => {
                           <span className={`status-tag status-${trial.status?.toLowerCase().replace(/\s+/g, '-')}`}>
                             {trial.status}
                           </span>
-                          <p className="card-description">
-                            {trial.description || `A trial on ${trial.condition || 'medical research'}.`}
-                          </p>
+                          {createTruncatedDescription(
+                            trial.description || `A trial on ${trial.condition || 'medical research'}.`,
+                            trial.url
+                          )}
                           <div className="card-actions-row">
                             <span className="action-link" onClick={() => {
                               const subject = encodeURIComponent(`Inquiry about: ${trial.title}`);
@@ -742,6 +771,7 @@ const PatientDashboard = () => {
                               {pub.authors.length > 2 && ' et al.'}
                             </p>
                           )}
+                          {pub.abstract && createTruncatedDescription(pub.abstract, pub.full_text_url)}
                           <div className="card-actions-row">
                             <span className="action-link">
                               {pub.full_text_url ? (
@@ -756,19 +786,14 @@ const PatientDashboard = () => {
                                 <span style={{ color: '#9ca3af', cursor: 'not-allowed' }}>View Full Paper</span>
                               )}
                             </span>
-                            <span className="action-link" onClick={() => {
-                              setExpandedAISummaries(prev => ({
-                                ...prev,
-                                [`pub_${pub.id}`]: !prev[`pub_${pub.id}`]
-                              }));
-                            }}>
+                            <span className="action-link" onClick={() => togglePublicationAISummary(pub.id, pub)}>
                               {expandedAISummaries[`pub_${pub.id}`] ? 'Hide AI Summary' : 'Get AI Summary'}
                             </span>
                           </div>
-                          {expandedAISummaries[`pub_${pub.id}`] && pub.ai_summary && (
+                          {expandedAISummaries[`pub_${pub.id}`] && (
                             <div className="ai-summary-container">
                               <div className="ai-summary-content">
-                              {formatAISummary(pub.ai_summary)}
+                                {pub.ai_summary ? formatAISummary(pub.ai_summary) : 'Generating AI summary...'}
                               </div>
                             </div>
                           )}

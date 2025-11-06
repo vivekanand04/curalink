@@ -3,6 +3,7 @@ const router = express.Router();
 const { query } = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { generateAISummary } = require('../utils/ai');
+const { ensureSeededForConditions } = require('../utils/seedData');
 
 // Get clinical trials (for patients - personalized)
 router.get('/', authenticate, async (req, res) => {
@@ -44,6 +45,17 @@ router.get('/', authenticate, async (req, res) => {
 router.get('/personalized', authenticate, authorize('patient'), async (req, res) => {
   try {
     const userId = req.user.userId;
+
+		// Attempt to seed data if tables are empty
+		try {
+			// Use patient conditions as seed queries when available
+			const condRes = await query('SELECT conditions FROM patient_profiles WHERE user_id = $1', [userId]);
+			const conds = condRes.rows[0]?.conditions || [];
+			await ensureSeededForConditions(conds);
+		} catch (seedErr) {
+			// Non-blocking
+			console.error('Seeding on clinical-trials/personalized failed:', seedErr?.message || seedErr);
+		}
     
     // Get patient's conditions
     const profileResult = await query('SELECT conditions FROM patient_profiles WHERE user_id = $1', [userId]);

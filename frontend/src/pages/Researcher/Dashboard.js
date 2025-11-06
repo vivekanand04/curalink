@@ -12,7 +12,7 @@ import MeetingRequests from './MeetingRequests';
 import Favorites from './Favorites';
 import ProfileModal from '../../components/ProfileModal';
 import AccountTypeModal from '../../components/AccountTypeModal';
-import { formatAISummary } from '../../utils/aiSummary';
+import { formatAISummary, createTruncatedDescription } from '../../utils/aiSummary';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -633,9 +633,10 @@ const ResearcherDashboard = () => {
                       <span className={`status-tag status-${trial.status?.toLowerCase().replace(/\s+/g, '-')}`}>
                         {trial.status}
                       </span>
-                      <p className="card-description">
-                        {trial.description || `A trial on ${trial.condition || 'medical research'}.`}
-                      </p>
+                      {createTruncatedDescription(
+                        trial.description || `A trial on ${trial.condition || 'medical research'}.`,
+                        trial.url
+                      )}
                       <div className="card-actions-row">
                         <span className="action-link" onClick={() => setActiveTab('trials')}>
                           View Details

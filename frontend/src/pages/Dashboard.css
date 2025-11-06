@@ -2831,6 +2831,49 @@
   background: #a0aec0;
 }
 
+/* 4-line truncation with view full paper link */
+.card-description-truncated {
+  font-size: 0.9rem;
+  color: #555;
+  line-height: 1.5;
+  margin: 10px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  position: relative;
+}
+
+.card-description-truncated.has-more::after {
+  content: "... view full paper";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: white;
+  padding-left: 10px;
+  cursor: pointer;
+  color: #2563eb;
+  text-decoration: none;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.card-description-truncated.has-more {
+  -webkit-line-clamp: 4;
+  padding-bottom: 1.5em;
+}
+
+/* For pages with grid layout */
+.cards-grid .card-description-truncated {
+  font-size: 0.95rem;
+  color: #4b5563;
+  margin: 0 0 16px 0;
+}
+
+.cards-grid .card-description-truncated.has-more::after {
+  font-size: 0.95rem;
+}
+
 /* Clinical Trial Form Styles */
 .clinical-trial-form {
   max-width: 900px;

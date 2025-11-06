@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import '../Dashboard.css';
+import { formatAISummary, createTruncatedDescription } from '../../utils/aiSummary';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -191,9 +192,10 @@ const Favorites = () => {
                   <span className={`status-tag status-${details.data.status?.toLowerCase().replace(/\s+/g, '-')}`}>
                     {details.data.status}
                   </span>
-                  <p className="card-description">
-                    {details.data.description || `A trial on ${details.data.condition || 'medical research'}.`}
-                  </p>
+                  {createTruncatedDescription(
+                    details.data.description || `A trial on ${details.data.condition || 'medical research'}.`,
+                    details.data.url
+                  )}
                   <div className="card-actions-row">
                     <span className="action-link" onClick={() => handleRemoveFavorite('clinical_trial', favorite.item_id)}>
                       Remove from Favorites

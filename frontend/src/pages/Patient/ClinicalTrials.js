@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import '../Dashboard.css';
-import { formatAISummary } from '../../utils/aiSummary';
+import { formatAISummary, createTruncatedDescription } from '../../utils/aiSummary';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -178,9 +178,10 @@ const ClinicalTrials = () => {
               <span className={`status-tag status-${trial.status?.toLowerCase().replace(/\s+/g, '-')}`}>
                 {trial.status}
               </span>
-              <p className="card-description">
-                {trial.description || `A trial on ${trial.condition || 'medical research'}.`}
-              </p>
+              {createTruncatedDescription(
+                trial.description || `A trial on ${trial.condition || 'medical research'}.`,
+                trial.url
+              )}
               <div className="card-actions-row">
                 <span className="action-link" onClick={() => handleContactTrial(trial)}>
                   Contact Trial

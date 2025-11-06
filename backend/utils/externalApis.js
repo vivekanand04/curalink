@@ -54,6 +54,32 @@ const fetchPubMedPublications = async (query, maxResults = 10) => {
   }
 };
 
+// Fetch publications from Google Scholar (placeholder - no official API)
+const fetchGoogleScholarPublications = async (query, maxResults = 10) => {
+	try {
+		// Google Scholar does not provide an official public API.
+		// This is a placeholder that returns an empty array.
+		// In production, consider approved partners or user-provided exports.
+		console.log(`Google Scholar API not available. Skipping query: ${query}`);
+		return [];
+	} catch (error) {
+		console.error('Error fetching Google Scholar publications:', error);
+		return [];
+	}
+};
+
+// Fetch publications from ResearchGate by query (placeholder - no public API)
+const fetchResearchGatePublicationsByQuery = async (query, maxResults = 10) => {
+	try {
+		// ResearchGate has no official public API; placeholder returns empty
+		console.log(`ResearchGate API not available. Skipping query: ${query}`);
+		return [];
+	} catch (error) {
+		console.error('Error fetching ResearchGate publications by query:', error);
+		return [];
+	}
+};
+
 // Fetch clinical trials from ClinicalTrials.gov
 const fetchClinicalTrialsGov = async (query, maxResults = 10) => {
   try {
@@ -84,6 +110,8 @@ const fetchClinicalTrialsGov = async (query, maxResults = 10) => {
 
 module.exports = {
   fetchPubMedPublications,
+	fetchGoogleScholarPublications,
+	fetchResearchGatePublicationsByQuery,
   fetchClinicalTrialsGov,
 };
 

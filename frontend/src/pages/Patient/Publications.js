@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import '../Dashboard.css';
-import { formatAISummary } from '../../utils/aiSummary';
+import { formatAISummary, createTruncatedDescription } from '../../utils/aiSummary';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -106,7 +106,28 @@ const Publications = () => {
     }
   };
 
-  const toggleAISummary = (pubId) => {
+  const toggleAISummary = async (pubId, pub) => {
+    const isCurrentlyExpanded = expandedAISummaries[pubId];
+
+    if (!isCurrentlyExpanded && !pub.ai_summary) {
+      // Generate AI summary on-demand if it doesn't exist
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.post(`${API_URL}/publications/${pubId}/generate-ai-summary`, {}, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        // Update the publication with the new AI summary
+        setPublications(prev => prev.map(p =>
+          p.id === pubId ? { ...p, ai_summary: response.data.ai_summary } : p
+        ));
+      } catch (error) {
+        console.error('Failed to generate AI summary:', error);
+        toast.error('Failed to generate AI summary');
+        return;
+      }
+    }
+
     setExpandedAISummaries(prev => ({
       ...prev,
       [pubId]: !prev[pubId]
@@ -152,6 +173,7 @@ const Publications = () => {
                   {pub.authors.length > 2 && ' et al.'}
                 </p>
               )}
+              {pub.abstract && createTruncatedDescription(pub.abstract, pub.full_text_url)}
               <div className="card-actions-row">
                 <span className="action-link">
                   {pub.full_text_url ? (
@@ -166,14 +188,14 @@ const Publications = () => {
                     <span style={{ color: '#9ca3af', cursor: 'not-allowed' }}>View Full Paper</span>
                   )}
                 </span>
-                <span className="action-link" onClick={() => toggleAISummary(pub.id)}>
+                <span className="action-link" onClick={() => toggleAISummary(pub.id, pub)}>
                   {expandedAISummaries[pub.id] ? 'Hide AI Summary' : 'Get AI Summary'}
                 </span>
               </div>
-              {expandedAISummaries[pub.id] && pub.ai_summary && (
+              {expandedAISummaries[pub.id] && (
                 <div className="ai-summary-container">
                   <div className="ai-summary-content">
-                    {formatAISummary(pub.ai_summary)}
+                    {pub.ai_summary ? formatAISummary(pub.ai_summary) : 'Generating AI summary...'}
                   </div>
                 </div>
               )}

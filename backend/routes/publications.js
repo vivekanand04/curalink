@@ -4,6 +4,7 @@ const { query } = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { generateAISummary } = require('../utils/ai');
 const { fetchPubMedPublications, fetchClinicalTrialsGov } = require('../utils/externalApis');
+const { ensureSeededForConditions, importPublicationsForConditions } = require('../utils/seedData');
 
 // Get publications authored by current researcher (server-side filtered)
 router.get('/mine', authenticate, authorize('researcher'), async (req, res) => {
@@ -75,6 +76,17 @@ router.get('/personalized', authenticate, async (req, res) => {
     const userType = req.user.userType || req.user.user_type;
 
     if (userType === 'patient') {
+			// Attempt to seed data if tables are empty
+			try {
+				// Use patient conditions as seed queries when available
+				const condRes = await query('SELECT conditions FROM patient_profiles WHERE user_id = $1', [userId]);
+				const conds = condRes.rows[0]?.conditions || [];
+				await ensureSeededForConditions(conds);
+			} catch (seedErr) {
+				// Non-blocking
+				console.error('Seeding on publications/personalized failed:', seedErr?.message || seedErr);
+			}
+
       // Get patient's conditions
       const profileResult = await query('SELECT conditions FROM patient_profiles WHERE user_id = $1', [userId]);
       const conditions = profileResult.rows[0]?.conditions || [];
@@ -94,13 +106,35 @@ router.get('/personalized', authenticate, async (req, res) => {
         params.push(`%${condition}%`, `%${condition}%`);
       });
 
-      const result = await query(
+      let result = await query(
         `SELECT * FROM publications 
          WHERE ${conditionsPattern}
          ORDER BY publication_date DESC 
          LIMIT 20`,
         params
       );
+
+      // PATIENT-SIDE ONLY: If no personalized publications found, import from external APIs
+      if (result.rows.length === 0) {
+        console.log('No personalized publications found. Triggering automatic import from external APIs...');
+        try {
+          await importPublicationsForConditions(conditions);
+          
+          // Re-query after import
+          result = await query(
+            `SELECT * FROM publications 
+             WHERE ${conditionsPattern}
+             ORDER BY publication_date DESC 
+             LIMIT 20`,
+            params
+          );
+          
+          console.log(`After import: Found ${result.rows.length} personalized publications`);
+        } catch (importErr) {
+          console.error('Automatic publication import failed:', importErr?.message || importErr);
+          // Continue with empty results - non-blocking error
+        }
+      }
 
       res.json(result.rows);
     } else {
@@ -181,7 +215,44 @@ router.get('/search', authenticate, async (req, res) => {
 // Get all publications
 router.get('/', authenticate, async (req, res) => {
   try {
-    const result = await query('SELECT * FROM publications ORDER BY publication_date DESC LIMIT 50');
+		const userId = req.user.userId;
+		const userType = req.user.userType || req.user.user_type;
+		
+		// Attempt to seed data if publications table is empty
+		try {
+			let conds = [];
+			if (userType === 'patient') {
+				const condRes = await query('SELECT conditions FROM patient_profiles WHERE user_id = $1', [userId]);
+				conds = condRes.rows[0]?.conditions || [];
+			}
+			await ensureSeededForConditions(conds);
+		} catch (seedErr) {
+			// Non-blocking
+			console.error('Seeding on publications index failed:', seedErr?.message || seedErr);
+		}
+
+    let result = await query('SELECT * FROM publications ORDER BY publication_date DESC LIMIT 50');
+    
+    // PATIENT-SIDE ONLY: If no publications found at all, import from external APIs based on patient conditions
+    if (result.rows.length === 0 && userType === 'patient') {
+      console.log('No publications found. Triggering automatic import from external APIs for patient...');
+      try {
+        const condRes = await query('SELECT conditions FROM patient_profiles WHERE user_id = $1', [userId]);
+        const conditions = condRes.rows[0]?.conditions || [];
+        
+        if (conditions.length > 0) {
+          await importPublicationsForConditions(conditions);
+          
+          // Re-query after import
+          result = await query('SELECT * FROM publications ORDER BY publication_date DESC LIMIT 50');
+          console.log(`After import: Found ${result.rows.length} publications`);
+        }
+      } catch (importErr) {
+        console.error('Automatic publication import failed:', importErr?.message || importErr);
+        // Continue with empty results - non-blocking error
+      }
+    }
+    
     res.json(result.rows);
   } catch (error) {
     console.error(error);
@@ -297,6 +368,39 @@ router.put('/:id', authenticate, authorize('researcher'), async (req, res) => {
   } catch (error) {
     console.error('Error updating publication:', error);
     res.status(500).json({ message: error.message || 'Server error' });
+  }
+});
+
+// Generate AI summary for a publication on-demand
+router.post('/:id/generate-ai-summary', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get the publication
+    const pubResult = await query('SELECT * FROM publications WHERE id = $1', [id]);
+    if (pubResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Publication not found' });
+    }
+
+    const publication = pubResult.rows[0];
+
+    // Check if AI summary already exists
+    if (publication.ai_summary) {
+      return res.json({ ai_summary: publication.ai_summary });
+    }
+
+    // Generate AI summary
+    const { generateAISummary } = require('../utils/ai');
+    const text = publication.abstract || publication.title || '';
+    const aiSummary = await generateAISummary(text);
+
+    // Update the publication with the AI summary
+    await query('UPDATE publications SET ai_summary = $1 WHERE id = $2', [aiSummary, id]);
+
+    res.json({ ai_summary: aiSummary });
+  } catch (error) {
+    console.error('Error generating AI summary:', error);
+    res.status(500).json({ message: 'Failed to generate AI summary' });
   }
 });
 
