@@ -3,7 +3,7 @@ import { FiEye, FiEdit2, FiTrash2 } from 'react-icons/fi';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import '../Dashboard.css';
-import { formatAISummary } from '../../utils/aiSummary';
+import { formatAISummary, createTruncatedDescription } from '../../utils/aiSummary';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -502,6 +502,10 @@ const PublicationsManage = () => {
                   By {pub.authors.slice(0, 2).map(author => author.includes('Dr.') ? author : `Dr. ${author}`).join(', ')}
                   {pub.authors.length > 2 && ' et al.'}
                 </p>
+              )}
+              {createTruncatedDescription(
+                pub.abstract || pub.title || 'No description available',
+                pub.full_text_url
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
                 <div style={{ display: 'flex', gap: '15px' }}>
