@@ -351,7 +351,7 @@ const ResearcherDashboard = () => {
           <div className="nav-brand">CuraLink</div>
         </div>
         <div className="nav-user">
-          <span className="role-chip">Researcher</span>
+          <span className="role-chip show-desktop">Researcher</span>
           <div className="profile-dropdown-container">
             <button 
               className="profile-icon-button"
